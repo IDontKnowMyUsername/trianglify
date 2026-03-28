@@ -3,13 +3,13 @@ import resolve from '@rollup/plugin-node-resolve'
 import babel from '@rollup/plugin-babel'
 import { terser } from 'rollup-plugin-terser'
 import bundleSize from 'rollup-plugin-bundle-size'
-import pkg from './package.json'
+import pkg from './package.json' with { type: 'json' }
 
 export default [
   { // build for node & module bundlers
     input: 'src/trianglify.js',
-    external: ['chroma-js', 'delaunator', 'canvas'],
-    plugins: [babel({ babelHelpers: 'bundled' }), bundleSize()],
+    external: ['chroma-js', 'canvas'],
+    plugins: [resolve(), commonjs(), babel({ babelHelpers: 'bundled' }), bundleSize()],
     output: { file: pkg.main, format: 'cjs' }
   },
   {
