@@ -1,4 +1,5 @@
 v5
+- add strokeColor option for custom stroke colors
 - support for stroke color (thanks @SmolSoftBoi, from upstream PR #157)
 - update changelog with latest v5 entries
 - add coverage tests and exclude bundle from coverage reporting
