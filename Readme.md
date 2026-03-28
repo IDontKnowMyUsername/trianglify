@@ -14,10 +14,10 @@ Trianglify is a library that I wrote to generate nice SVG background images like
 
 # 📦 Getting Trianglify
 
-You can grab Trianglify with npm/yarn (recommended):
+You can grab Trianglify with pnpm (recommended):
 
 ```
-npm install --save trianglify
+pnpm add trianglify
 ```
 
 Include it in your application via the unpkg CDN:
@@ -156,7 +156,7 @@ Rendering function for canvas. In browser and browser-like environments, returns
 
 If an existing canvas element is passed as the `destCanvas`, this function will render the pattern to the pre-existing element instead of creating a new one.
 
-To use this in a node.js environment, the optional dependency [node-canvas](https://github.com/Automattic/node-canvas) needs to be installed as a dependency of your project `npm install -save canvas`.
+To use this in a node.js environment, the optional dependency [node-canvas](https://github.com/Automattic/node-canvas) needs to be installed as a dependency of your project `pnpm add canvas`.
 
 The `canvasOpts` option allows for some canvas-specific customizations to the output:
 

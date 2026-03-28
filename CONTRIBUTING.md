@@ -14,7 +14,7 @@ If you're submitting a bug, please include the enivronment (browser/node) and re
 *Important: if you are submitting a pull request that does not address an open issue in the issue tracker, it would be a very good idea to create an issue to discuss your proposed changes/additions before working on them.*
 
 1. Fork the repo on GitHub.
-2. Install dependencies with `npm install`
+2. Install dependencies with `pnpm install`
 2. Create a topic branch and make your changes.
-3.  Run `npm run ci` to test your code and compile it to trianglify.min.js.
+3.  Run `pnpm run ci` to test your code and compile it to trianglify.min.js.
 4. Submit a pull request to merge your topic branch into `master`.

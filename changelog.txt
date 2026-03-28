@@ -1,3 +1,6 @@
+v5
+- migrate from npm to pnpm as package manager
+
 v4
 - ground-up port to ES2015
 - support for node-canvas 2.6

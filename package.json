@@ -1,6 +1,6 @@
 {
   "name": "trianglify",
-  "version": "4.1.1",
+  "version": "5.0.0",
   "description": "Trianglify is a javascript library for generating colorful triangle meshes that can be used as SVG images and CSS backgrounds.",
   "main": "dist/trianglify.js",
   "scripts": {
@@ -8,8 +8,8 @@
     "test": "jest",
     "build": "rollup -c",
     "dev": "rollup -c -w",
-    "publish-beta": "npm run build && npm publish --tag next",
-    "ci": "npm run lint && npm run build && npm run test"
+    "publish-beta": "pnpm run build && npm publish --tag next",
+    "ci": "pnpm run lint && pnpm run build && pnpm run test"
   },
   "dependencies": {
     "chroma-js": "^2.1.0",
@@ -44,6 +44,7 @@
   },
   "author": "Quinn Rohlf <qr@qrohlf.com>",
   "license": "GPL-3.0",
+  "packageManager": "pnpm@10.14.0",
   "bugs": {
     "url": "https://github.com/qrohlf/trianglify/issues"
   },
@@ -62,5 +63,10 @@
     "rollup-plugin-bundle-size": "^1.0.3",
     "rollup-plugin-terser": "^5.3.0",
     "standard": "^14.3.3"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "canvas"
+    ]
   }
 }
