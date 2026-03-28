@@ -7,12 +7,18 @@
   "main": "dist/trianglify.cjs",
   "module": "dist/trianglify.mjs",
   "types": "dist/trianglify.d.ts",
+  "engines": {
+    "node": ">=18"
+  },
   "exports": {
     ".": {
       "types": "./dist/trianglify.d.ts",
       "import": "./dist/trianglify.mjs",
       "require": "./dist/trianglify.cjs",
       "default": "./dist/trianglify.mjs"
+    },
+    "./worker": {
+      "default": "./dist/trianglify.worker.js"
     }
   },
   "scripts": {

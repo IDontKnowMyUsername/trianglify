@@ -15,7 +15,7 @@ export interface TrianglifyOptions {
   seed: string | number | null
   xColors: string | string[] | false
   yColors: string | string[] | false
-  palette: Record<string, string[]>
+  palette: Record<string, string[]> | string[][]
   colorSpace: 'rgb' | 'hsv' | 'hsl' | 'hsi' | 'lab' | 'hcl'
   colorFunction: ColorFunction
   fill: boolean
@@ -39,7 +39,7 @@ export interface ColorFunctionParams {
 
 export interface ColorFunction {
   (params: ColorFunctionParams): Color
-  _descriptor?: { name: string; args: unknown[] }
+  _descriptor?: { name: string; args: number[] }
 }
 
 export interface Polygon {
@@ -48,10 +48,18 @@ export interface Polygon {
   color: Color
 }
 
+export interface RenderOpts {
+  width: number
+  height: number
+  fill: boolean
+  strokeWidth: number
+  strokeColor: string | null
+}
+
 export interface PatternData {
   points: Point[]
   polys: { vertexIndices: number[]; centroid: Centroid; color: string }[]
-  opts: Record<string, unknown>
+  opts: RenderOpts
 }
 
 export interface SVGTreeNode {

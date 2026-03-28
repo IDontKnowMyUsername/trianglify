@@ -17,9 +17,7 @@ import mulberry32 from './utils/mulberry32'
 import * as geom from './utils/geom'
 import * as colorFunctions from './utils/colorFunctions'
 import type { TrianglifyOptions, Polygon, Point } from './types'
-export type { TrianglifyOptions, ColorFunctionParams, ColorFunction, Polygon, PatternData, SVGTreeNode, SVGOptions, CanvasOptions } from './types'
-export type { default as Pattern } from './pattern'
-export type { default as TrianglifyWorker } from './workerClient'
+export type { TrianglifyOptions, RenderOpts, ColorFunctionParams, ColorFunction, Polygon, PatternData, SVGTreeNode, SVGOptions, CanvasOptions } from './types'
 
 const defaultOptions: TrianglifyOptions = {
   width: 600,
@@ -70,27 +68,27 @@ function trianglify (_opts: Partial<TrianglifyOptions> = {}): Pattern {
   const rand = mulberry32(opts.seed)
 
   const randomFromPalette = (): string[] => {
-    if (opts.palette instanceof Array) {
-      return opts.palette[Math.floor(rand() * opts.palette.length)] as unknown as string[]
+    if (Array.isArray(opts.palette)) {
+      return opts.palette[Math.floor(rand() * opts.palette.length)]
     }
-    const keys = Object.keys(opts.palette)
-    return opts.palette[keys[Math.floor(rand() * keys.length)]]
+    const palettes = Object.values(opts.palette)
+    return palettes[Math.floor(rand() * palettes.length)]
   }
 
   // The first step here is to set up our color scales for the X and Y axis.
   // First, munge the shortcut options like 'random' or 'match' into real color
   // arrays. Then, set up a Chroma scale in the appropriate color space.
   const processColorOpts = (colorOpt: string | string[] | false): string[] => {
-    switch (true) {
-      case Array.isArray(colorOpt):
-        return colorOpt as string[]
-      case !!(opts.palette as Record<string, string[]>)[colorOpt as string]:
-        return (opts.palette as Record<string, string[]>)[colorOpt as string]
-      case colorOpt === 'random':
-        return randomFromPalette()
-      default:
-        throw TypeError(`Unrecognized color option: ${colorOpt}`)
+    if (Array.isArray(colorOpt)) {
+      return colorOpt
     }
+    if (colorOpt === 'random') {
+      return randomFromPalette()
+    }
+    if (!Array.isArray(opts.palette) && typeof colorOpt === 'string' && opts.palette[colorOpt]) {
+      return opts.palette[colorOpt]
+    }
+    throw TypeError(`Unrecognized color option: ${colorOpt}`)
   }
 
   const xColors = processColorOpts(opts.xColors)
@@ -189,7 +187,6 @@ const getPoints = (opts: TrianglifyOptions, random: () => number): Point[] => {
   return points
 }
 
-// tweak some of the exports here
 export default Object.assign(trianglify, {
   utils: {
     mix: chroma.mix,
