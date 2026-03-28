@@ -1,7 +1,13 @@
 import getScalingRatio from './utils/getScalingRatio'
+import type { Point, TrianglifyOptions, PatternData, SVGTreeNode, SVGOptions, CanvasOptions } from './types'
+
 const isBrowser = (typeof window !== 'undefined' && typeof document !== 'undefined')
 
-function _createCanvas (width, height) {
+type SVGAttrs = Record<string, string | number | undefined>
+
+declare const require: (id: string) => { createCanvas: (w: number, h: number) => HTMLCanvasElement }
+
+function _createCanvas (width: number, height: number): HTMLCanvasElement {
   if (isBrowser) {
     return Object.assign(document.createElement('canvas'), { width, height })
   }
@@ -10,17 +16,20 @@ function _createCanvas (width, height) {
   } catch (e) {
     throw new Error(
       'toCanvas() requires either a browser environment or the "canvas" npm package. ' +
-      'Install it with: npm install canvas'
+      'Install it with: npm install canvas',
+      { cause: e }
     )
   }
 }
 const doc = isBrowser && document
 
+type Serializer<T> = (tagName: string, attrs: SVGAttrs, children?: T[], existingRoot?: T | null) => T
+
 // utility for building up SVG node trees with the DOM API
-const sDOM = (tagName, attrs = {}, children, existingRoot) => {
-  const elem = existingRoot || doc.createElementNS('http://www.w3.org/2000/svg', tagName)
+const sDOM: Serializer<SVGElement> = (tagName, attrs = {}, children?, existingRoot?) => {
+  const elem = existingRoot || (doc as Document).createElementNS('http://www.w3.org/2000/svg', tagName)
   Object.keys(attrs).forEach(
-    k => attrs[k] !== undefined && elem.setAttribute(k, attrs[k])
+    k => attrs[k] !== undefined && elem.setAttribute(k, String(attrs[k]))
   )
   children && children.forEach(c => elem.appendChild(c))
   return elem
@@ -28,7 +37,7 @@ const sDOM = (tagName, attrs = {}, children, existingRoot) => {
 
 // serialize attrs object to XML attributes. Assumes everything is already
 // escaped (safe input).
-const serializeAttrs = attrs => (
+const serializeAttrs = (attrs: SVGAttrs): string => (
   Object.entries(attrs)
     .filter(([_, v]) => v !== undefined)
     .map(([k, v]) => `${k}='${v}'`)
@@ -36,15 +45,30 @@ const serializeAttrs = attrs => (
 )
 
 // minimal XML-tree builder for use in Node
-const sNode = (tagName, attrs = {}, children) => ({
+const sNode: Serializer<SVGTreeNode> = (tagName, attrs = {}, children?) => ({
   tagName,
   attrs,
-  children,
+  children: children || null,
   toString: () => `<${tagName} ${serializeAttrs(attrs)}>${children ? children.join('') : ''}</${tagName}>`
 })
 
+// Color-like object with a css() method (used for both chroma Color and fromData reconstructed polys)
+interface CSSColor {
+  css: () => string
+}
+
+interface RenderPolygon {
+  vertexIndices: number[]
+  centroid: { x: number; y: number }
+  color: CSSColor
+}
+
 export default class Pattern {
-  constructor (points, polys, opts) {
+  points: Point[]
+  polys: RenderPolygon[]
+  opts: TrianglifyOptions | Record<string, unknown>
+
+  constructor (points: Point[], polys: RenderPolygon[], opts: TrianglifyOptions | Record<string, unknown>) {
     this.points = points
     this.polys = polys
     this.opts = opts
@@ -52,8 +76,8 @@ export default class Pattern {
 
   // Serialize the pattern to a plain object suitable for postMessage/JSON.
   // Chroma color objects are converted to CSS strings.
-  toData = () => {
-    const { colorFunction, palette, points: _points, ...serializableOpts } = this.opts
+  toData = (): PatternData => {
+    const { colorFunction: _cf, palette: _p, points: _points, ...serializableOpts } = this.opts as TrianglifyOptions
     return {
       points: this.points,
       polys: this.polys.map(poly => ({
@@ -67,8 +91,8 @@ export default class Pattern {
 
   // Reconstruct a Pattern from serialized data (as produced by toData).
   // The returned pattern supports toCanvas() and toSVG() rendering.
-  static fromData (data) {
-    const polys = data.polys.map(poly => ({
+  static fromData (data: PatternData): Pattern {
+    const polys: RenderPolygon[] = data.polys.map(poly => ({
       vertexIndices: poly.vertexIndices,
       centroid: poly.centroid,
       color: { css: () => poly.color }
@@ -76,12 +100,12 @@ export default class Pattern {
     return new Pattern(data.points, polys, data.opts)
   }
 
-  _toSVG = (serializer, destSVG, _svgOpts = {}) => {
+  _toSVG = <T>(serializer: Serializer<T>, destSVG: T | null, _svgOpts: SVGOptions = {}): T => {
     const s = serializer
     const defaultSVGOptions = { includeNamespace: true, coordinateDecimals: 1 }
     const svgOpts = { ...defaultSVGOptions, ..._svgOpts }
     const { points, opts, polys } = this
-    const { width, height } = opts
+    const { width, height } = opts as TrianglifyOptions
 
     // only round points if the coordinateDecimals option is non-negative
     // set coordinateDecimals to -1 to disable point rounding
@@ -92,17 +116,17 @@ export default class Pattern {
     const paths = polys.map((poly) => {
       const xys = poly.vertexIndices.map(i => `${roundedPoints[i][0]},${roundedPoints[i][1]}`)
       const d = `M${xys.join('L')}Z`
-      const hasStroke = opts.strokeWidth > 0
+      const hasStroke = (opts as TrianglifyOptions).strokeWidth > 0
       // shape-rendering crispEdges resolves the antialiasing issues, at the
       // potential cost of some visual degradation. For the best performance
       // *and* best visual rendering, use Canvas.
       return s('path', {
         d,
-        fill: opts.fill ? poly.color.css() : undefined,
-        stroke: hasStroke ? (opts.strokeColor || poly.color.css()) : undefined,
-        'stroke-width': hasStroke ? opts.strokeWidth : undefined,
+        fill: (opts as TrianglifyOptions).fill ? poly.color.css() : undefined,
+        stroke: hasStroke ? ((opts as TrianglifyOptions).strokeColor || poly.color.css()) : undefined,
+        'stroke-width': hasStroke ? (opts as TrianglifyOptions).strokeWidth : undefined,
         'stroke-linejoin': hasStroke ? 'round' : undefined,
-        'shape-rendering': opts.fill ? 'crispEdges' : undefined
+        'shape-rendering': (opts as TrianglifyOptions).fill ? 'crispEdges' : undefined
       })
     })
 
@@ -120,42 +144,44 @@ export default class Pattern {
     return svg
   }
 
-  toSVGTree = (svgOpts) => this._toSVG(sNode, null, svgOpts)
+  toSVGTree = (svgOpts?: SVGOptions): SVGTreeNode => this._toSVG(sNode, null, svgOpts)
 
-  toSVG = isBrowser
-    ? (destSVG, svgOpts) => this._toSVG(sDOM, destSVG, svgOpts)
-    : (destSVG, svgOpts) => this.toSVGTree(svgOpts)
+  toSVG: ((destSVG?: SVGElement | null, svgOpts?: SVGOptions) => SVGElement) |
+    ((destSVG?: unknown, svgOpts?: SVGOptions) => SVGTreeNode) = isBrowser
+      ? (destSVG?: SVGElement | null, svgOpts?: SVGOptions) => this._toSVG(sDOM, destSVG ?? null, svgOpts)
+      : (_destSVG?: unknown, svgOpts?: SVGOptions) => this.toSVGTree(svgOpts)
 
-  toCanvas = (destCanvas, _canvasOpts = {}) => {
+  toCanvas = (destCanvas?: HTMLCanvasElement, _canvasOpts: CanvasOptions = {}): HTMLCanvasElement => {
     const defaultCanvasOptions = {
-      scaling: isBrowser ? 'auto' : false,
+      scaling: isBrowser ? 'auto' as const : false as const,
       applyCssScaling: !!isBrowser
     }
     const canvasOpts = { ...defaultCanvasOptions, ..._canvasOpts }
     const { points, polys, opts } = this
+    const { width, height } = opts as TrianglifyOptions
 
-    const canvas = destCanvas || _createCanvas(opts.width, opts.height)
-    const ctx = canvas.getContext('2d')
+    const canvas = destCanvas || _createCanvas(width, height)
+    const ctx = canvas.getContext('2d')!
 
     if (canvasOpts.scaling) {
       const drawRatio = canvasOpts.scaling === 'auto'
         ? getScalingRatio()
-        : canvasOpts.scaling
+        : canvasOpts.scaling as number
 
       if (drawRatio !== 1) {
         // set the 'real' canvas size to the higher width/height
-        canvas.width = opts.width * drawRatio
-        canvas.height = opts.height * drawRatio
+        canvas.width = width * drawRatio
+        canvas.height = height * drawRatio
 
         if (canvasOpts.applyCssScaling) {
           // ...then scale it back down with CSS
-          canvas.style.width = `${opts.width}px`
-          canvas.style.height = `${opts.height}px`
+          canvas.style.width = `${width}px`
+          canvas.style.height = `${height}px`
         }
       } else {
         // this is a normal 1:1 device: don't apply scaling
-        canvas.width = opts.width
-        canvas.height = opts.height
+        canvas.width = width
+        canvas.height = height
         if (canvasOpts.applyCssScaling) {
           canvas.style.width = ''
           canvas.style.height = ''
@@ -164,7 +190,7 @@ export default class Pattern {
       ctx.scale(drawRatio, drawRatio)
     }
 
-    const drawPoly = (poly, fill, stroke) => {
+    const drawPoly = (poly: RenderPolygon, fill: { color: CSSColor } | null | false, stroke: { color: CSSColor; width: number } | false) => {
       const vertexIndices = poly.vertexIndices
       ctx.lineJoin = 'round'
       ctx.beginPath()
@@ -183,7 +209,8 @@ export default class Pattern {
       }
     }
 
-    if (opts.fill && opts.strokeWidth < 1) {
+    const typedOpts = opts as TrianglifyOptions
+    if (typedOpts.fill && typedOpts.strokeWidth < 1) {
       // draw background strokes at edge bounds to solve for white gaps due to
       // canvas antialiasing. See https://stackoverflow.com/q/19319963/381299
       polys.forEach(poly => drawPoly(poly, null, { color: poly.color, width: 2 }))
@@ -191,11 +218,11 @@ export default class Pattern {
 
     // draw visible fills and strokes
     polys.forEach(poly => {
-      const strokeColor = opts.strokeColor ? { css: () => opts.strokeColor } : poly.color
+      const strokeColor: CSSColor = typedOpts.strokeColor ? { css: () => typedOpts.strokeColor! } : poly.color
       drawPoly(
         poly,
-        opts.fill && { color: poly.color },
-        (opts.strokeWidth > 0) && { color: strokeColor, width: opts.strokeWidth }
+        typedOpts.fill && { color: poly.color },
+        (typedOpts.strokeWidth > 0) && { color: strokeColor, width: typedOpts.strokeWidth }
       )
     })
 

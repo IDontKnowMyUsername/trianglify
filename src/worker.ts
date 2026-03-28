@@ -1,3 +1,4 @@
+/// <reference lib="webworker" />
 /*
  * Trianglify Web Worker entry point
  *
@@ -9,18 +10,28 @@
 
 import trianglify from './trianglify'
 import * as colorFunctions from './utils/colorFunctions'
+import type { ColorFunction } from './types'
 
-const resolveColorFunction = (descriptor) => {
-  if (!descriptor || typeof descriptor === 'function') return descriptor
-  const { name, args = [] } = typeof descriptor === 'string'
-    ? { name: descriptor }
-    : descriptor
-  const factory = colorFunctions[name]
-  if (!factory) throw new Error(`Unknown color function: ${name}`)
-  return factory(...args)
+declare const self: DedicatedWorkerGlobalScope
+
+type ColorFunctionName = keyof typeof colorFunctions
+
+interface ColorFunctionDescriptor {
+  name: string
+  args?: unknown[]
 }
 
-self.onmessage = (e) => {
+const resolveColorFunction = (descriptor: ColorFunctionDescriptor | ColorFunction | string | undefined): ColorFunction | undefined => {
+  if (!descriptor || typeof descriptor === 'function') return descriptor as ColorFunction | undefined
+  const { name, args = [] } = typeof descriptor === 'string'
+    ? { name: descriptor, args: [] as unknown[] }
+    : descriptor
+  const factory = colorFunctions[name as ColorFunctionName]
+  if (!factory) throw new Error(`Unknown color function: ${name}`)
+  return (factory as (...args: unknown[]) => ColorFunction)(...args)
+}
+
+self.onmessage = (e: MessageEvent) => {
   const { id, opts } = e.data
   try {
     if (opts.colorFunction) {
@@ -29,6 +40,6 @@ self.onmessage = (e) => {
     const pattern = trianglify(opts)
     self.postMessage({ id, data: pattern.toData() })
   } catch (err) {
-    self.postMessage({ id, error: err.message })
+    self.postMessage({ id, error: (err as Error).message })
   }
 }

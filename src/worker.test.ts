@@ -1,13 +1,19 @@
 /**
  * @jest-environment jsdom
  */
-/* eslint-env jest */
+export {}
 
 // Tests for Web Worker support: Pattern serialization/deserialization,
 // color function descriptors, and the TrianglifyWorker client.
 
 const trianglify = require('../dist/trianglify.bundle.debug.js')
 const Pattern = trianglify.Pattern
+
+interface SerializedPoly {
+  vertexIndices: number[]
+  centroid: { x: number; y: number }
+  color: string
+}
 
 describe('Pattern.toData()', () => {
   test('returns a plain serializable object', () => {
@@ -23,7 +29,7 @@ describe('Pattern.toData()', () => {
     const pattern = trianglify({ seed: 'worker-test', width: 100, height: 100 })
     const data = pattern.toData()
 
-    data.polys.forEach(poly => {
+    data.polys.forEach((poly: SerializedPoly) => {
       expect(typeof poly.color).toBe('string')
       // should be a valid CSS color string
       expect(poly.color).toMatch(/^(rgb|hsl|#)/)
@@ -35,7 +41,7 @@ describe('Pattern.toData()', () => {
     const data = pattern.toData()
 
     expect(data.points).toEqual(pattern.points)
-    data.polys.forEach((poly, i) => {
+    data.polys.forEach((poly: SerializedPoly, i: number) => {
       expect(poly.vertexIndices).toEqual(pattern.polys[i].vertexIndices)
       expect(poly.centroid).toEqual(pattern.polys[i].centroid)
     })
@@ -80,7 +86,7 @@ describe('Pattern.fromData()', () => {
     const data = pattern.toData()
     const restored = Pattern.fromData(data)
 
-    restored.polys.forEach((poly, i) => {
+    restored.polys.forEach((poly: { color: { css: () => string } }, i: number) => {
       expect(typeof poly.color.css).toBe('function')
       expect(poly.color.css()).toBe(data.polys[i].color)
     })

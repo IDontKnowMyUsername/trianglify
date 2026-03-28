@@ -4,9 +4,9 @@
 // Usage:
 // const randFn = mulberry32('string seed')
 // const randomNumber = randFn() // [0, 1] random float
-export default function mulberry32 (seed) {
-  if (!seed) { seed = Math.random().toString(36) } // support no-seed usage
-  let a = xmur3(seed)()
+export default function mulberry32 (seed: string | number | null): () => number {
+  const str = seed ? String(seed) : Math.random().toString(36)
+  let a = xmur3(str)()
   return function () {
     a |= 0; a = a + 0x6D2B79F5 | 0
     let t = Math.imul(a ^ a >>> 15, 1 | a)
@@ -15,7 +15,7 @@ export default function mulberry32 (seed) {
   }
 }
 
-function xmur3 (str) {
+function xmur3 (str: string): () => number {
   let h = 1779033703 ^ str.length
   for (let i = 0; i < str.length; i++) {
     h = Math.imul(h ^ str.charCodeAt(i), 3432918353)

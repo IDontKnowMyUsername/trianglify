@@ -1,8 +1,9 @@
 /**
  * @jest-environment node
  */
-/* eslint-env jest */
-// Additional tests to increase code coverage of trianglify.js
+export {}
+
+// Additional tests to increase code coverage of trianglify
 const trianglify = require('../dist/trianglify.cjs')
 const Pattern = trianglify.Pattern
 
@@ -40,7 +41,7 @@ describe('Color options', () => {
 
 describe('Custom points', () => {
   test('should accept user-provided points', () => {
-    const points = []
+    const points: [number, number][] = []
     for (let x = 0; x <= 100; x += 25) {
       for (let y = 0; y <= 100; y += 25) {
         points.push([x, y])

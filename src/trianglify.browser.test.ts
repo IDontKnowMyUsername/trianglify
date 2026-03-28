@@ -1,17 +1,10 @@
 /**
  * @jest-environment jsdom
  */
-/* eslint-env jest */
-// Because Trianglify is authored using ES modules syntax (which Rollup likes)
-// it can't be unit-tested on a per-file basis using Jest without maintaining
-// a separate compiler configuration for test files.
-//
-// In the interest of sanity, this means that instead of unit-testing Trianglify,
-// I'm importing the built `dist` files and running a set of integration tests
-// against the public API only.
-//
-// I hope to start unit-testing in the future, when native support for ES modules
-// lands in Node and Jest (See https://github.com/facebook/jest/issues/9430)
+export {}
+
+// Integration tests against the built browser bundle.
+// Tests import from dist/ to validate the public API.
 
 // pull in the transpiled, browser-bundle version of trianglify.
 // this is needed so that we get the browser-targeted Canvas shim, and
@@ -63,15 +56,15 @@ describe('Options Parsing', () => {
     expect(() => trianglify({ cellSize: 0 })).toThrow()
     expect(() => trianglify({ cellSize: -1 })).toThrow()
     expect(() => trianglify({ cellSize: 0.5 })).toThrow()
-    expect(() => trianglify({ cellSize: '40' })).toThrow()
-    expect(() => trianglify({ cellSize: 'abc' })).toThrow()
+    expect(() => trianglify({ cellSize: '40' as any })).toThrow()
+    expect(() => trianglify({ cellSize: 'abc' as any })).toThrow()
     expect(() => trianglify({ cellSize: Infinity })).toThrow()
     expect(() => trianglify({ cellSize: NaN })).toThrow()
   })
 
   test('should throw an error on invalid variance', () => {
     expect(() => trianglify({ variance: -1 })).toThrow()
-    expect(() => trianglify({ variance: '0.5' })).toThrow()
+    expect(() => trianglify({ variance: '0.5' as any })).toThrow()
     expect(() => trianglify({ variance: NaN })).toThrow()
     expect(() => trianglify({ variance: Infinity })).toThrow()
   })
@@ -124,14 +117,14 @@ describe('Pattern generation', () => {
     // we care about pattern.points and pattern.polys here
     expect(pattern.points).toBeInstanceOf(Array)
     // assert that points is an array of [x, y] tuples
-    pattern.points.forEach(point => {
+    pattern.points.forEach((point: number[]) => {
       expect(point).toBeInstanceOf(Array)
       expect(point).toHaveLength(2)
     })
 
     // asset the polys looks right
     expect(pattern.polys).toBeInstanceOf(Array)
-    pattern.polys.forEach(poly => {
+    pattern.polys.forEach((poly: Record<string, unknown>) => {
       expect(poly).toBeInstanceOf(Object)
       expect(Object.keys(poly)).toEqual(['vertexIndices', 'centroid', 'color'])
     })
@@ -161,7 +154,7 @@ describe('Pattern outputs in browser environment', () => {
       const svgDOM = pattern.toSVG()
       expect(svgDOM.tagName).toEqual('svg')
       expect(svgDOM.children).toBeInstanceOf(global.HTMLCollection)
-      Array.from(svgDOM.children).forEach(node => {
+      Array.from(svgDOM.children as Iterable<Element>).forEach((node: Element) => {
         expect(node.tagName).toEqual('path')
       })
       expect(svgDOM.children).toHaveLength(pattern.polys.length)

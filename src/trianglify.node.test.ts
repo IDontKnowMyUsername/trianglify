@@ -1,7 +1,8 @@
 /**
  * @jest-environment node
  */
-/* eslint-env jest */
+export {}
+
 // Here, we test the node-specific functionality of Trianglify.
 const trianglify = require('../dist/trianglify.cjs')
 const { Canvas } = require('canvas')

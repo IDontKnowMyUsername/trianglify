@@ -16,8 +16,12 @@ import TrianglifyWorker from './workerClient'
 import mulberry32 from './utils/mulberry32'
 import * as geom from './utils/geom'
 import * as colorFunctions from './utils/colorFunctions'
+import type { TrianglifyOptions, Polygon, Point } from './types'
+export type { TrianglifyOptions, ColorFunctionParams, ColorFunction, Polygon, PatternData, SVGTreeNode, SVGOptions, CanvasOptions } from './types'
+export type { default as Pattern } from './pattern'
+export type { default as TrianglifyWorker } from './workerClient'
 
-const defaultOptions = {
+const defaultOptions: TrianglifyOptions = {
   width: 600,
   height: 400,
   cellSize: 75,
@@ -41,13 +45,13 @@ const defaultOptions = {
 // 3. Generate random points within cell geometry
 // 4. Use the Delaunator library to run the triangulation
 // 5. Do color interpolation to establish the fundamental coloring of the shapes
-export default function trianglify (_opts = {}) {
+function trianglify (_opts: Partial<TrianglifyOptions> = {}): Pattern {
   Object.keys(_opts).forEach(k => {
-    if (defaultOptions[k] === undefined) {
+    if (!(k in defaultOptions)) {
       throw TypeError(`Unrecognized option: ${k}`)
     }
   })
-  const opts = { ...defaultOptions, ..._opts }
+  const opts: TrianglifyOptions = { ...defaultOptions, ..._opts }
 
   if (!(opts.height > 0)) {
     throw TypeError(`invalid height: ${opts.height}`)
@@ -65,9 +69,9 @@ export default function trianglify (_opts = {}) {
   // standard randomizer, used for point gen and layout
   const rand = mulberry32(opts.seed)
 
-  const randomFromPalette = () => {
+  const randomFromPalette = (): string[] => {
     if (opts.palette instanceof Array) {
-      return opts.palette[Math.floor(rand() * opts.palette.length)]
+      return opts.palette[Math.floor(rand() * opts.palette.length)] as unknown as string[]
     }
     const keys = Object.keys(opts.palette)
     return opts.palette[keys[Math.floor(rand() * keys.length)]]
@@ -76,12 +80,12 @@ export default function trianglify (_opts = {}) {
   // The first step here is to set up our color scales for the X and Y axis.
   // First, munge the shortcut options like 'random' or 'match' into real color
   // arrays. Then, set up a Chroma scale in the appropriate color space.
-  const processColorOpts = (colorOpt) => {
+  const processColorOpts = (colorOpt: string | string[] | false): string[] => {
     switch (true) {
       case Array.isArray(colorOpt):
-        return colorOpt
-      case !!opts.palette[colorOpt]:
-        return opts.palette[colorOpt]
+        return colorOpt as string[]
+      case !!(opts.palette as Record<string, string[]>)[colorOpt as string]:
+        return (opts.palette as Record<string, string[]>)[colorOpt as string]
       case colorOpt === 'random':
         return randomFromPalette()
       default:
@@ -99,7 +103,7 @@ export default function trianglify (_opts = {}) {
 
   // Our next step is to generate a pseudo-random grid of {x, y} points,
   // (or to simply utilize the points that were passed to us)
-  const points = opts.points || getPoints(opts, rand)
+  const points: Point[] = opts.points || getPoints(opts, rand)
 
   // Once we have the points array, run the triangulation
   const geomIndices = Delaunator.from(points).triangles
@@ -108,8 +112,8 @@ export default function trianglify (_opts = {}) {
   // use a different (salted) randomizer for the color function so that
   // swapping out color functions doesn't change the pattern geometry itself
   const salt = 42
-  const cRand = mulberry32(opts.seed ? opts.seed + salt : null)
-  const polys = []
+  const cRand = mulberry32(opts.seed ? String(opts.seed) + salt : null)
+  const polys: Polygon[] = []
 
   for (let i = 0; i < geomIndices.length; i += 3) {
     // convert shallow array-packed vertex indices into 3-tuples
@@ -123,7 +127,7 @@ export default function trianglify (_opts = {}) {
     const vertices = vertexIndices.map(i => points[i])
 
     const { width, height } = opts
-    const norm = num => Math.max(0, Math.min(1, num))
+    const norm = (num: number) => Math.max(0, Math.min(1, num))
     const centroid = geom.getCentroid(vertices)
     const xPercent = norm(centroid.x / width)
     const yPercent = norm(centroid.y / height)
@@ -151,7 +155,7 @@ export default function trianglify (_opts = {}) {
   return new Pattern(points, polys, opts)
 }
 
-const getPoints = (opts, random) => {
+const getPoints = (opts: TrianglifyOptions, random: () => number): Point[] => {
   const { width, height, cellSize, variance } = opts
 
   // pad by 2 cells outside the visible area on each side to ensure we fully
@@ -172,11 +176,10 @@ const getPoints = (opts, random) => {
 
   const halfCell = cellSize / 2
 
-  const points = Array.from({ length: pointCount }, (_, i) => {
+  const points: Point[] = Array.from({ length: pointCount }, (_, i) => {
     const col = i % colCount
     const row = Math.floor(i / colCount)
 
-    // [x, y, z]
     return [
       -bleedX + col * cellSize + halfCell + getJitter(),
       -bleedY + row * cellSize + halfCell + getJitter()
@@ -187,12 +190,13 @@ const getPoints = (opts, random) => {
 }
 
 // tweak some of the exports here
-trianglify.utils = {
-  mix: chroma.mix,
-  colorbrewer
-}
-
-trianglify.colorFunctions = colorFunctions
-trianglify.Pattern = Pattern
-trianglify.TrianglifyWorker = TrianglifyWorker
-trianglify.defaultOptions = defaultOptions
+export default Object.assign(trianglify, {
+  utils: {
+    mix: chroma.mix,
+    colorbrewer
+  },
+  colorFunctions,
+  Pattern,
+  TrianglifyWorker,
+  defaultOptions
+})
