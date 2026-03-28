@@ -1,4 +1,5 @@
 v5
+- modernize JS idioms (var→const/let, template literals, Array.from), add sideEffects field, enable source maps
 - modernize tooling, add ESM distribution and TypeScript definitions
 - add input validation for cellSize and variance options
 - add Web Worker support for off-main-thread pattern generation
