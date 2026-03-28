@@ -1,4 +1,5 @@
 v5
+- add input validation for cellSize and variance options
 - add Web Worker support for off-main-thread pattern generation
 - make canvas an optional peer dependency for browser/SVG-only usage (issue #136)
 - add strokeColor option for custom stroke colors
