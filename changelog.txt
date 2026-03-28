@@ -1,4 +1,6 @@
 v5
+- improve type safety: fix palette union type, add RenderOpts interface, eliminate unsafe type casts
+- add engines field (node >=18) and expose worker bundle in package.json exports
 - migrate source and tests from JavaScript to TypeScript with full type annotations
 - replace Babel with TypeScript compiler, Standard.js with ESLint + typescript-eslint
 - auto-generate type declarations from source (replaces hand-maintained .d.ts)
