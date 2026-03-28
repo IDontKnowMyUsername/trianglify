@@ -50,6 +50,32 @@ export default class Pattern {
     this.opts = opts
   }
 
+  // Serialize the pattern to a plain object suitable for postMessage/JSON.
+  // Chroma color objects are converted to CSS strings.
+  toData = () => {
+    const { colorFunction, palette, points: _points, ...serializableOpts } = this.opts
+    return {
+      points: this.points,
+      polys: this.polys.map(poly => ({
+        vertexIndices: poly.vertexIndices,
+        centroid: poly.centroid,
+        color: poly.color.css()
+      })),
+      opts: serializableOpts
+    }
+  }
+
+  // Reconstruct a Pattern from serialized data (as produced by toData).
+  // The returned pattern supports toCanvas() and toSVG() rendering.
+  static fromData (data) {
+    const polys = data.polys.map(poly => ({
+      vertexIndices: poly.vertexIndices,
+      centroid: poly.centroid,
+      color: { css: () => poly.color }
+    }))
+    return new Pattern(data.points, polys, data.opts)
+  }
+
   _toSVG = (serializer, destSVG, _svgOpts = {}) => {
     const s = serializer
     const defaultSVGOptions = { includeNamespace: true, coordinateDecimals: 1 }

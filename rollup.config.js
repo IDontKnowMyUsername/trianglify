@@ -24,5 +24,11 @@ export default [
     input: 'src/trianglify.js',
     plugins: [resolve({ browser: true }), commonjs(), babel({ babelHelpers: 'bundled' }), bundleSize()],
     output: { file: 'dist/trianglify.bundle.debug.js', format: 'umd', name: 'trianglify' }
+  },
+  {
+    // build minified web worker bundle for offloading pattern generation
+    input: 'src/worker.js',
+    plugins: [terser({ output: { comments: false } }), resolve({ browser: true }), commonjs(), babel({ babelHelpers: 'bundled' }), bundleSize()],
+    output: { file: 'dist/trianglify.worker.js', format: 'iife' }
   }
 ]

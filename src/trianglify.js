@@ -12,6 +12,7 @@ import chroma from 'chroma-js'
 
 import colorbrewer from './utils/colorbrewer'
 import Pattern from './pattern'
+import TrianglifyWorker from './workerClient'
 import mulberry32 from './utils/mulberry32'
 import * as geom from './utils/geom'
 import * as colorFunctions from './utils/colorFunctions'
@@ -187,4 +188,5 @@ trianglify.utils = {
 
 trianglify.colorFunctions = colorFunctions
 trianglify.Pattern = Pattern
+trianglify.TrianglifyWorker = TrianglifyWorker
 trianglify.defaultOptions = defaultOptions
