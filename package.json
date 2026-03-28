@@ -40,6 +40,10 @@
   "jest": {
     "setupFiles": [
       "jest-canvas-mock"
+    ],
+    "coveragePathIgnorePatterns": [
+      "/node_modules/",
+      "trianglify\\.bundle"
     ]
   },
   "author": "Quinn Rohlf <qr@qrohlf.com>",
