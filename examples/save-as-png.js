@@ -1,7 +1,7 @@
 // Basic command-line example
 // Usage: node save-as-png.js
-var fs = require('fs')
-var trianglify = require('../dist/trianglify.js')
+const fs = require('fs')
+const trianglify = require('../dist/trianglify.js')
 
 // Generate a pattern and then grab the PNG data uri
 const canvas = trianglify({

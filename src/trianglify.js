@@ -102,7 +102,7 @@ export default function trianglify (_opts = {}) {
   const points = opts.points || getPoints(opts, rand)
 
   // Once we have the points array, run the triangulation
-  var geomIndices = Delaunator.from(points).triangles
+  const geomIndices = Delaunator.from(points).triangles
   // ...and then generate geometry and color data:
 
   // use a different (salted) randomizer for the color function so that
@@ -172,7 +172,7 @@ const getPoints = (opts, random) => {
 
   const halfCell = cellSize / 2
 
-  const points = Array(pointCount).fill(null).map((_, i) => {
+  const points = Array.from({ length: pointCount }, (_, i) => {
     const col = i % colCount
     const row = Math.floor(i / colCount)
 

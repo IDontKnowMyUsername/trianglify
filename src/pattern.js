@@ -91,7 +91,7 @@ export default class Pattern {
 
     const paths = polys.map((poly) => {
       const xys = poly.vertexIndices.map(i => `${roundedPoints[i][0]},${roundedPoints[i][1]}`)
-      const d = 'M' + xys.join('L') + 'Z'
+      const d = `M${xys.join('L')}Z`
       const hasStroke = opts.strokeWidth > 0
       // shape-rendering crispEdges resolves the antialiasing issues, at the
       // potential cost of some visual degradation. For the best performance
@@ -139,7 +139,7 @@ export default class Pattern {
 
     if (canvasOpts.scaling) {
       const drawRatio = canvasOpts.scaling === 'auto'
-        ? getScalingRatio(ctx)
+        ? getScalingRatio()
         : canvasOpts.scaling
 
       if (drawRatio !== 1) {
@@ -149,8 +149,8 @@ export default class Pattern {
 
         if (canvasOpts.applyCssScaling) {
           // ...then scale it back down with CSS
-          canvas.style.width = opts.width + 'px'
-          canvas.style.height = opts.height + 'px'
+          canvas.style.width = `${opts.width}px`
+          canvas.style.height = `${opts.height}px`
         }
       } else {
         // this is a normal 1:1 device: don't apply scaling
