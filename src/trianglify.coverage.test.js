@@ -3,7 +3,7 @@
  */
 /* eslint-env jest */
 // Additional tests to increase code coverage of trianglify.js
-const trianglify = require('../dist/trianglify.js')
+const trianglify = require('../dist/trianglify.cjs')
 const Pattern = trianglify.Pattern
 
 describe('Color options', () => {

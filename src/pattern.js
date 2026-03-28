@@ -85,9 +85,9 @@ export default class Pattern {
 
     // only round points if the coordinateDecimals option is non-negative
     // set coordinateDecimals to -1 to disable point rounding
-    const roundedPoints = (svgOpts.coordinateDecimals < 0) ? points : points.map(
-      p => p.map(x => +x.toFixed(svgOpts.coordinateDecimals))
-    )
+    const roundedPoints = (svgOpts.coordinateDecimals < 0)
+      ? points
+      : points.map(p => p.map(x => +x.toFixed(svgOpts.coordinateDecimals)))
 
     const paths = polys.map((poly) => {
       const xys = poly.vertexIndices.map(i => `${roundedPoints[i][0]},${roundedPoints[i][1]}`)

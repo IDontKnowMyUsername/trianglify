@@ -1,16 +1,22 @@
 import commonjs from '@rollup/plugin-commonjs'
 import resolve from '@rollup/plugin-node-resolve'
 import babel from '@rollup/plugin-babel'
-import { terser } from 'rollup-plugin-terser'
+import terser from '@rollup/plugin-terser'
 import bundleSize from 'rollup-plugin-bundle-size'
-import pkg from './package.json' with { type: 'json' }
 
 export default [
-  { // build for node & module bundlers
+  { // build for node & module bundlers (CJS + ESM)
     input: 'src/trianglify.js',
     external: ['chroma-js'],
     plugins: [resolve(), commonjs(), babel({ babelHelpers: 'bundled' }), bundleSize()],
-    output: { file: pkg.main, format: 'cjs' }
+    output: [
+      { file: 'dist/trianglify.cjs', format: 'cjs' },
+      {
+        file: 'dist/trianglify.mjs',
+        format: 'es',
+        banner: 'import{createRequire as _createRequire}from"node:module";const require=_createRequire(import.meta.url);'
+      }
+    ]
   },
   {
     // build minified bundle to be used standalone for browser use

@@ -2,7 +2,18 @@
   "name": "trianglify",
   "version": "5.0.0",
   "description": "Trianglify is a javascript library for generating colorful triangle meshes that can be used as SVG images and CSS backgrounds.",
-  "main": "dist/trianglify.js",
+  "type": "module",
+  "main": "dist/trianglify.cjs",
+  "module": "dist/trianglify.mjs",
+  "types": "dist/trianglify.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/trianglify.d.ts",
+      "import": "./dist/trianglify.mjs",
+      "require": "./dist/trianglify.cjs",
+      "default": "./dist/trianglify.mjs"
+    }
+  },
   "scripts": {
     "lint": "standard",
     "test": "jest",
@@ -23,6 +34,11 @@
       "optional": true
     }
   },
+  "files": [
+    "dist/",
+    "Readme.md",
+    "LICENSE"
+  ],
   "directories": {
     "example": "examples"
   },
@@ -38,7 +54,11 @@
     "lowpoly"
   ],
   "standard": {
-    "parser": "babel-eslint",
+    "parser": "@babel/eslint-parser",
+    "globals": [
+      "self",
+      "Worker"
+    ],
     "ignore": [
       "dist",
       "**/vendor/**"
@@ -62,19 +82,17 @@
   "homepage": "https://github.com/qrohlf/trianglify",
   "devDependencies": {
     "canvas": "^3.2.2",
-    "@babel/plugin-proposal-class-properties": "^7.18.6",
-    "@babel/plugin-syntax-class-properties": "^7.12.13",
+    "@babel/eslint-parser": "^7.25.0",
     "@babel/preset-env": "^7.29.2",
     "@rollup/plugin-babel": "^7.0.0",
     "@rollup/plugin-commonjs": "^29.0.2",
     "@rollup/plugin-node-resolve": "^16.0.3",
-    "babel-eslint": "^10.1.0",
+    "@rollup/plugin-terser": "^0.4.0",
     "jest": "^30.3.0",
     "jest-canvas-mock": "^2.5.2",
     "jest-environment-jsdom": "^30.3.0",
     "rollup": "^4.60.0",
     "rollup-plugin-bundle-size": "^1.0.3",
-    "rollup-plugin-terser": "^7.0.2",
     "standard": "^17.1.2"
   },
   "pnpm": {
