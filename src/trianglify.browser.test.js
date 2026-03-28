@@ -58,6 +58,23 @@ describe('Options Parsing', () => {
       () => trianglify({ height: -1, width: 100 })
     ).toThrow()
   })
+
+  test('should throw an error on invalid cellSize', () => {
+    expect(() => trianglify({ cellSize: 0 })).toThrow()
+    expect(() => trianglify({ cellSize: -1 })).toThrow()
+    expect(() => trianglify({ cellSize: 0.5 })).toThrow()
+    expect(() => trianglify({ cellSize: '40' })).toThrow()
+    expect(() => trianglify({ cellSize: 'abc' })).toThrow()
+    expect(() => trianglify({ cellSize: Infinity })).toThrow()
+    expect(() => trianglify({ cellSize: NaN })).toThrow()
+  })
+
+  test('should throw an error on invalid variance', () => {
+    expect(() => trianglify({ variance: -1 })).toThrow()
+    expect(() => trianglify({ variance: '0.5' })).toThrow()
+    expect(() => trianglify({ variance: NaN })).toThrow()
+    expect(() => trianglify({ variance: Infinity })).toThrow()
+  })
 })
 
 describe('Pattern generation', () => {

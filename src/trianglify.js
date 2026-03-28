@@ -55,6 +55,12 @@ export default function trianglify (_opts = {}) {
   if (!(opts.width > 0)) {
     throw TypeError(`invalid width: ${opts.width}`)
   }
+  if (typeof opts.cellSize !== 'number' || !isFinite(opts.cellSize) || opts.cellSize < 1) {
+    throw TypeError(`invalid cellSize: ${opts.cellSize}`)
+  }
+  if (typeof opts.variance !== 'number' || !isFinite(opts.variance) || opts.variance < 0) {
+    throw TypeError(`invalid variance: ${opts.variance}`)
+  }
 
   // standard randomizer, used for point gen and layout
   const rand = mulberry32(opts.seed)
