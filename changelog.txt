@@ -1,4 +1,7 @@
 v5
+- migrate source and tests from JavaScript to TypeScript with full type annotations
+- replace Babel with TypeScript compiler, Standard.js with ESLint + typescript-eslint
+- auto-generate type declarations from source (replaces hand-maintained .d.ts)
 - modernize JS idioms (var→const/let, template literals, Array.from), add sideEffects field, enable source maps
 - modernize tooling, add ESM distribution and TypeScript definitions
 - add input validation for cellSize and variance options
