@@ -8,7 +8,7 @@ import pkg from './package.json' with { type: 'json' }
 export default [
   { // build for node & module bundlers
     input: 'src/trianglify.js',
-    external: ['chroma-js', 'canvas'],
+    external: ['chroma-js'],
     plugins: [resolve(), commonjs(), babel({ babelHelpers: 'bundled' }), bundleSize()],
     output: { file: pkg.main, format: 'cjs' }
   },
