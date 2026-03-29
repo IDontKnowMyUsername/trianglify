@@ -17,7 +17,7 @@ import mulberry32 from './utils/mulberry32'
 import * as geom from './utils/geom'
 import * as colorFunctions from './utils/colorFunctions'
 import type { TrianglifyOptions, Polygon, Point } from './types'
-export type { TrianglifyOptions, RenderOpts, ColorFunctionParams, ColorFunction, Polygon, PatternData, SVGTreeNode, SVGOptions, CanvasOptions } from './types'
+export type { TrianglifyOptions, RenderOpts, ColorFunctionParams, ColorFunction, CSSColor, Polygon, PatternData, SVGTreeNode, SVGOptions, CanvasOptions } from './types'
 
 const defaultOptions: TrianglifyOptions = {
   width: 600,

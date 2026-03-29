@@ -7,6 +7,10 @@ export interface Centroid {
   y: number
 }
 
+export interface CSSColor {
+  css: () => string
+}
+
 export interface TrianglifyOptions {
   width: number
   height: number
@@ -45,7 +49,7 @@ export interface ColorFunction {
 export interface Polygon {
   vertexIndices: number[]
   centroid: Centroid
-  color: Color
+  color: CSSColor
 }
 
 export interface RenderOpts {

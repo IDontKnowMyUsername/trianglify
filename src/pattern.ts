@@ -1,5 +1,5 @@
 import getScalingRatio from './utils/getScalingRatio'
-import type { Point, TrianglifyOptions, RenderOpts, PatternData, SVGTreeNode, SVGOptions, CanvasOptions } from './types'
+import type { Point, CSSColor, Polygon, TrianglifyOptions, RenderOpts, PatternData, SVGTreeNode, SVGOptions, CanvasOptions } from './types'
 
 const isBrowser = (typeof window !== 'undefined' && typeof document !== 'undefined')
 
@@ -52,23 +52,12 @@ const sNode: Serializer<SVGTreeNode> = (tagName, attrs = {}, children?) => ({
   toString: () => `<${tagName} ${serializeAttrs(attrs)}>${children ? children.join('') : ''}</${tagName}>`
 })
 
-// Color-like object with a css() method (used for both chroma Color and fromData reconstructed polys)
-interface CSSColor {
-  css: () => string
-}
-
-interface RenderPolygon {
-  vertexIndices: number[]
-  centroid: { x: number; y: number }
-  color: CSSColor
-}
-
 export default class Pattern {
   points: Point[]
-  polys: RenderPolygon[]
+  polys: Polygon[]
   opts: TrianglifyOptions | RenderOpts
 
-  constructor (points: Point[], polys: RenderPolygon[], opts: TrianglifyOptions | RenderOpts) {
+  constructor (points: Point[], polys: Polygon[], opts: TrianglifyOptions | RenderOpts) {
     this.points = points
     this.polys = polys
     this.opts = opts
@@ -92,7 +81,7 @@ export default class Pattern {
   // Reconstruct a Pattern from serialized data (as produced by toData).
   // The returned pattern supports toCanvas() and toSVG() rendering.
   static fromData (data: PatternData): Pattern {
-    const polys: RenderPolygon[] = data.polys.map(poly => ({
+    const polys: Polygon[] = data.polys.map(poly => ({
       vertexIndices: poly.vertexIndices,
       centroid: poly.centroid,
       color: { css: () => poly.color }
@@ -100,7 +89,7 @@ export default class Pattern {
     return new Pattern(data.points, polys, data.opts)
   }
 
-  _toSVG = <T>(serializer: Serializer<T>, destSVG: T | null, _svgOpts: SVGOptions = {}): T => {
+  private _toSVG = <T>(serializer: Serializer<T>, destSVG: T | null, _svgOpts: SVGOptions = {}): T => {
     const s = serializer
     const defaultSVGOptions = { includeNamespace: true, coordinateDecimals: 1 }
     const svgOpts = { ...defaultSVGOptions, ..._svgOpts }
@@ -191,7 +180,7 @@ export default class Pattern {
       ctx.scale(drawRatio, drawRatio)
     }
 
-    const drawPoly = (poly: RenderPolygon, polyFill: { color: CSSColor } | null | false, stroke: { color: CSSColor; width: number } | false) => {
+    const drawPoly = (poly: Polygon, polyFill: { color: CSSColor } | null | false, stroke: { color: CSSColor; width: number } | false) => {
       const vertexIndices = poly.vertexIndices
       ctx.lineJoin = 'round'
       ctx.beginPath()
