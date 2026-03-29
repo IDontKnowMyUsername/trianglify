@@ -26,6 +26,7 @@ export interface TrianglifyOptions {
   strokeWidth: number
   strokeColor: string | null
   points: Point[] | null
+  pointGeneration: 'grid' | 'poisson' | 'bestCandidate'
 }
 
 export interface ColorFunctionParams {

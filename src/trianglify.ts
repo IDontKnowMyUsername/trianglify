@@ -14,6 +14,8 @@ import colorbrewer from './utils/colorbrewer'
 import Pattern from './pattern'
 import TrianglifyWorker from './workerClient'
 import mulberry32 from './utils/mulberry32'
+import poissonDisc from './utils/poissonDisc'
+import bestCandidate from './utils/bestCandidate'
 import * as geom from './utils/geom'
 import * as colorFunctions from './utils/colorFunctions'
 import type { TrianglifyOptions, Polygon, Point, CSSColor } from './types'
@@ -33,7 +35,8 @@ const defaultOptions: TrianglifyOptions = {
   fill: true,
   strokeWidth: 0,
   strokeColor: null,
-  points: null
+  points: null,
+  pointGeneration: 'grid'
 }
 
 // This function does the "core" render-independent work:
@@ -62,6 +65,10 @@ function trianglify (_opts: Partial<TrianglifyOptions> = {}): Pattern {
   }
   if (typeof opts.variance !== 'number' || !isFinite(opts.variance) || opts.variance < 0) {
     throw TypeError(`invalid variance: ${opts.variance}`)
+  }
+  const validPointGenerations = ['grid', 'poisson', 'bestCandidate']
+  if (!validPointGenerations.includes(opts.pointGeneration)) {
+    throw TypeError(`invalid pointGeneration: ${opts.pointGeneration}`)
   }
 
   // standard randomizer, used for point gen and layout
@@ -163,8 +170,26 @@ function trianglify (_opts: Partial<TrianglifyOptions> = {}): Pattern {
 }
 
 const getPoints = (opts: TrianglifyOptions, random: () => number): Point[] => {
-  const { width, height, cellSize, variance } = opts
+  const { width, height, cellSize, variance, pointGeneration } = opts
 
+  switch (pointGeneration) {
+    case 'poisson':
+      return poissonDisc(width, height, cellSize, variance, random)
+    case 'bestCandidate':
+      return bestCandidate(width, height, cellSize, variance, random)
+    case 'grid':
+    default:
+      return getGridPoints(width, height, cellSize, variance, random)
+  }
+}
+
+const getGridPoints = (
+  width: number,
+  height: number,
+  cellSize: number,
+  variance: number,
+  random: () => number
+): Point[] => {
   // pad by 2 cells outside the visible area on each side to ensure we fully
   // cover the 'artboard'
   const colCount = Math.floor(width / cellSize) + 4

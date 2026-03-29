@@ -68,6 +68,17 @@ describe('Options Parsing', () => {
     expect(() => trianglify({ variance: NaN })).toThrow()
     expect(() => trianglify({ variance: Infinity })).toThrow()
   })
+
+  test('should throw an error on invalid pointGeneration', () => {
+    expect(() => trianglify({ pointGeneration: 'invalid' as any })).toThrow()
+    expect(() => trianglify({ pointGeneration: '' as any })).toThrow()
+  })
+
+  test('should accept valid pointGeneration values', () => {
+    expect(() => trianglify({ pointGeneration: 'grid', seed: 'test' })).not.toThrow()
+    expect(() => trianglify({ pointGeneration: 'poisson', seed: 'test' })).not.toThrow()
+    expect(() => trianglify({ pointGeneration: 'bestCandidate', seed: 'test' })).not.toThrow()
+  })
 })
 
 describe('Pattern generation', () => {
@@ -144,6 +155,40 @@ describe('Pattern generation', () => {
 
   test('should match snapshot for non-breaking version bumps', () => {
     expect(trianglify({ seed: 'snapshotText' }).toSVG()).toMatchSnapshot()
+  })
+
+  test('should generate well-formed geometry with poisson point generation', () => {
+    const pattern = trianglify({ height: 100, width: 100, cellSize: 20, pointGeneration: 'poisson', seed: 'poisson-test' })
+    expect(pattern).toBeInstanceOf(Pattern)
+    expect(pattern.points).toBeInstanceOf(Array)
+    expect(pattern.points.length).toBeGreaterThan(3)
+    pattern.points.forEach((point: number[]) => {
+      expect(point).toHaveLength(2)
+    })
+    expect(pattern.polys.length).toBeGreaterThan(0)
+  })
+
+  test('should generate well-formed geometry with bestCandidate point generation', () => {
+    const pattern = trianglify({ height: 100, width: 100, cellSize: 20, pointGeneration: 'bestCandidate', seed: 'bc-test' })
+    expect(pattern).toBeInstanceOf(Pattern)
+    expect(pattern.points).toBeInstanceOf(Array)
+    expect(pattern.points.length).toBeGreaterThan(3)
+    pattern.points.forEach((point: number[]) => {
+      expect(point).toHaveLength(2)
+    })
+    expect(pattern.polys.length).toBeGreaterThan(0)
+  })
+
+  test('poisson generation should be deterministic when seeded', () => {
+    const p1 = trianglify({ seed: 'poisson-seed', pointGeneration: 'poisson' })
+    const p2 = trianglify({ seed: 'poisson-seed', pointGeneration: 'poisson' })
+    expect(p1.toSVG()).toEqual(p2.toSVG())
+  })
+
+  test('bestCandidate generation should be deterministic when seeded', () => {
+    const p1 = trianglify({ seed: 'bc-seed', pointGeneration: 'bestCandidate' })
+    const p2 = trianglify({ seed: 'bc-seed', pointGeneration: 'bestCandidate' })
+    expect(p1.toSVG()).toEqual(p2.toSVG())
   })
 })
 
