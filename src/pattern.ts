@@ -100,7 +100,10 @@ export default class Pattern {
     // set coordinateDecimals to -1 to disable point rounding
     const roundedPoints = (svgOpts.coordinateDecimals < 0)
       ? points
-      : points.map(p => p.map(x => +x.toFixed(svgOpts.coordinateDecimals)))
+      : (() => {
+          const factor = 10 ** svgOpts.coordinateDecimals
+          return points.map(p => p.map(x => Math.round(x * factor) / factor))
+        })()
 
     const paths = polys.map((poly) => {
       const xys = poly.vertexIndices.map(i => `${roundedPoints[i]![0]},${roundedPoints[i]![1]}`)
@@ -180,13 +183,17 @@ export default class Pattern {
       ctx.scale(drawRatio, drawRatio)
     }
 
+    ctx.lineJoin = 'round'
+
     const drawPoly = (poly: Polygon, polyFill: { color: CSSColor } | null | false, stroke: { color: CSSColor; width: number } | false) => {
       const vertexIndices = poly.vertexIndices
-      ctx.lineJoin = 'round'
+      const [ax, ay] = points[vertexIndices[0]!]!
+      const [bx, by] = points[vertexIndices[1]!]!
+      const [cx, cy] = points[vertexIndices[2]!]!
       ctx.beginPath()
-      ctx.moveTo(points[vertexIndices[0]!]![0], points[vertexIndices[0]!]![1])
-      ctx.lineTo(points[vertexIndices[1]!]![0], points[vertexIndices[1]!]![1])
-      ctx.lineTo(points[vertexIndices[2]!]![0], points[vertexIndices[2]!]![1])
+      ctx.moveTo(ax, ay)
+      ctx.lineTo(bx, by)
+      ctx.lineTo(cx, cy)
       ctx.closePath()
       if (polyFill) {
         ctx.fillStyle = polyFill.color.css()

@@ -16,7 +16,7 @@ import TrianglifyWorker from './workerClient'
 import mulberry32 from './utils/mulberry32'
 import * as geom from './utils/geom'
 import * as colorFunctions from './utils/colorFunctions'
-import type { TrianglifyOptions, Polygon, Point } from './types'
+import type { TrianglifyOptions, Polygon, Point, CSSColor } from './types'
 export type { TrianglifyOptions, RenderOpts, ColorFunctionParams, ColorFunction, CSSColor, Polygon, PatternData, SVGTreeNode, SVGOptions, CanvasOptions } from './types'
 
 const defaultOptions: TrianglifyOptions = {
@@ -112,6 +112,8 @@ function trianglify (_opts: Partial<TrianglifyOptions> = {}): Pattern {
   const salt = 42
   const cRand = mulberry32(opts.seed ? String(opts.seed) + salt : null)
   const polys: Polygon[] = []
+  const { width, height } = opts
+  const norm = (num: number) => Math.max(0, Math.min(1, num))
 
   for (let i = 0; i < geomIndices.length; i += 3) {
     // Delaunator packs triangle indices as flat [a,b,c, d,e,f, ...] triples
@@ -129,13 +131,11 @@ function trianglify (_opts: Partial<TrianglifyOptions> = {}): Pattern {
       points[vertexIndices[2]!]!
     ]
 
-    const { width, height } = opts
-    const norm = (num: number) => Math.max(0, Math.min(1, num))
     const centroid = geom.getCentroid(vertices)
     const xPercent = norm(centroid.x / width)
     const yPercent = norm(centroid.y / height)
 
-    const color = opts.colorFunction({
+    const rawColor = opts.colorFunction({
       centroid, // centroid of polygon, non-normalized
       xPercent, // x-coordinate of centroid, normalized to [0, 1]
       yPercent, // y-coordinate of centroid, normalized to [0, 1]
@@ -148,10 +148,14 @@ function trianglify (_opts: Partial<TrianglifyOptions> = {}): Pattern {
       random: cRand // seeded randomization function for use by color functions
     })
 
+    // Cache the CSS string to avoid repeated chroma-js conversions during rendering
+    const cssValue = rawColor.css()
+    const color: CSSColor = { css: () => cssValue }
+
     polys.push({
       vertexIndices,
       centroid,
-      color // chroma color object
+      color
     })
   }
 
