@@ -41,7 +41,8 @@ export default class TrianglifyWorker {
       if (!handler) return
       this._pending.delete(id)
       if (error) handler.reject(new Error(error))
-      else handler.resolve(Pattern.fromData(data!))
+      else if (data) handler.resolve(Pattern.fromData(data))
+      else handler.reject(new Error('Worker returned neither data nor error'))
     }
 
     this._worker.onerror = (e: ErrorEvent) => {
@@ -52,22 +53,43 @@ export default class TrianglifyWorker {
     }
   }
 
-  generate (opts: Partial<TrianglifyOptions> = {}): Promise<Pattern> {
+  generate (opts: Partial<TrianglifyOptions> = {}, { signal }: { signal?: AbortSignal } = {}): Promise<Pattern> {
     return new Promise((resolve, reject) => {
+      if (signal?.aborted) {
+        reject(signal.reason ?? new DOMException('Aborted', 'AbortError'))
+        return
+      }
+
       const id = this._nextId++
       const workerOpts: WorkerOpts = { ...opts }
 
       // Serialize colorFunction: use _descriptor for built-in functions,
       // omit custom functions (worker will use default)
       if (typeof workerOpts.colorFunction === 'function') {
-        if ((workerOpts.colorFunction as ColorFunction)._descriptor) {
-          workerOpts.colorFunction = (workerOpts.colorFunction as ColorFunction)._descriptor!
+        const descriptor = (workerOpts.colorFunction as ColorFunction)._descriptor
+        if (descriptor) {
+          workerOpts.colorFunction = descriptor
         } else {
           delete workerOpts.colorFunction
         }
       }
 
-      this._pending.set(id, { resolve, reject })
+      const onAbort = () => {
+        this._pending.delete(id)
+        reject(signal!.reason ?? new DOMException('Aborted', 'AbortError'))
+      }
+      signal?.addEventListener('abort', onAbort, { once: true })
+
+      this._pending.set(id, {
+        resolve: (pattern) => {
+          signal?.removeEventListener('abort', onAbort)
+          resolve(pattern)
+        },
+        reject: (error) => {
+          signal?.removeEventListener('abort', onAbort)
+          reject(error)
+        }
+      })
       this._worker.postMessage({ id, opts: workerOpts })
     })
   }

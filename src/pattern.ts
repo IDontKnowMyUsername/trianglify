@@ -114,7 +114,7 @@ export default class Pattern {
       : points.map(p => p.map(x => +x.toFixed(svgOpts.coordinateDecimals)))
 
     const paths = polys.map((poly) => {
-      const xys = poly.vertexIndices.map(i => `${roundedPoints[i][0]},${roundedPoints[i][1]}`)
+      const xys = poly.vertexIndices.map(i => `${roundedPoints[i]![0]},${roundedPoints[i]![1]}`)
       const d = `M${xys.join('L')}Z`
       const hasStroke = strokeWidth > 0
       // shape-rendering crispEdges resolves the antialiasing issues, at the
@@ -161,7 +161,8 @@ export default class Pattern {
     const { width, height, fill, strokeWidth, strokeColor } = opts
 
     const canvas = destCanvas || _createCanvas(width, height)
-    const ctx = canvas.getContext('2d')!
+    const ctx = canvas.getContext('2d')
+    if (!ctx) throw new Error('Could not acquire 2D rendering context from canvas')
 
     if (canvasOpts.scaling) {
       const drawRatio = canvasOpts.scaling === 'auto'
@@ -194,9 +195,9 @@ export default class Pattern {
       const vertexIndices = poly.vertexIndices
       ctx.lineJoin = 'round'
       ctx.beginPath()
-      ctx.moveTo(points[vertexIndices[0]][0], points[vertexIndices[0]][1])
-      ctx.lineTo(points[vertexIndices[1]][0], points[vertexIndices[1]][1])
-      ctx.lineTo(points[vertexIndices[2]][0], points[vertexIndices[2]][1])
+      ctx.moveTo(points[vertexIndices[0]!]![0], points[vertexIndices[0]!]![1])
+      ctx.lineTo(points[vertexIndices[1]!]![0], points[vertexIndices[1]!]![1])
+      ctx.lineTo(points[vertexIndices[2]!]![0], points[vertexIndices[2]!]![1])
       ctx.closePath()
       if (polyFill) {
         ctx.fillStyle = polyFill.color.css()

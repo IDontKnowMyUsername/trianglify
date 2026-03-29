@@ -27,7 +27,7 @@
     "test": "jest",
     "build": "tsc -p tsconfig.build.json && rollup -c",
     "dev": "rollup -c -w",
-    "publish-beta": "pnpm run build && npm publish --tag next",
+    "publish-beta": "pnpm run build && pnpm publish --tag next",
     "ci": "pnpm run typecheck && pnpm run lint && pnpm run build && pnpm run test"
   },
   "dependencies": {

@@ -69,10 +69,10 @@ function trianglify (_opts: Partial<TrianglifyOptions> = {}): Pattern {
 
   const randomFromPalette = (): string[] => {
     if (Array.isArray(opts.palette)) {
-      return opts.palette[Math.floor(rand() * opts.palette.length)]
+      return opts.palette[Math.floor(rand() * opts.palette.length)]!
     }
     const palettes = Object.values(opts.palette)
-    return palettes[Math.floor(rand() * palettes.length)]
+    return palettes[Math.floor(rand() * palettes.length)]!
   }
 
   // The first step here is to set up our color scales for the X and Y axis.
@@ -114,15 +114,20 @@ function trianglify (_opts: Partial<TrianglifyOptions> = {}): Pattern {
   const polys: Polygon[] = []
 
   for (let i = 0; i < geomIndices.length; i += 3) {
-    // convert shallow array-packed vertex indices into 3-tuples
+    // Delaunator packs triangle indices as flat [a,b,c, d,e,f, ...] triples
     const vertexIndices = [
-      geomIndices[i],
-      geomIndices[i + 1],
-      geomIndices[i + 2]
+      geomIndices[i]!,
+      geomIndices[i + 1]!,
+      geomIndices[i + 2]!
     ]
 
     // grab a copy of the actual vertices to use for calculations
-    const vertices = vertexIndices.map(i => points[i])
+    // vertexIndices are guaranteed within bounds of points by Delaunator
+    const vertices: [Point, Point, Point] = [
+      points[vertexIndices[0]!]!,
+      points[vertexIndices[1]!]!,
+      points[vertexIndices[2]!]!
+    ]
 
     const { width, height } = opts
     const norm = (num: number) => Math.max(0, Math.min(1, num))

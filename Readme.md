@@ -23,7 +23,7 @@ pnpm add trianglify
 Include it in your application via the unpkg CDN:
 
 ```
-<script src='https://unpkg.com/trianglify@^4/dist/trianglify.bundle.js'></script>
+<script src='https://unpkg.com/trianglify@^5/dist/trianglify.bundle.js'></script>
 ```
 
 Or download a .zip from the [**releases page**](https://github.com/qrohlf/trianglify/releases).
@@ -33,7 +33,7 @@ Or download a .zip from the [**releases page**](https://github.com/qrohlf/triang
 
 **Browsers**
 ```html
-<script src='https://unpkg.com/trianglify@^4/dist/trianglify.bundle.js'></script>
+<script src='https://unpkg.com/trianglify@^5/dist/trianglify.bundle.js'></script>
 <script>
   const pattern = trianglify({
     width: window.innerWidth,
@@ -193,7 +193,7 @@ const defaultOptions = {
   xColors: 'random',
   yColors: 'match',
   fill: true,
-  palette: trianglify.colorbrewer,
+  palette: trianglify.utils.colorbrewer,
   colorSpace: 'lab',
   colorFunction: trianglify.colorFunctions.interpolateLinear(0.5),
   strokeWidth: 0,
@@ -236,7 +236,7 @@ False, string or array of CSS-formatted colors, default is `'match'`. When set t
 
 **`palette`**
 
-The array of color combinations to pick from when using `random` for the xColors or yColors. See [`src/utils/colorbrewer.js`](./src/utils/colorbrewer.js) for the format of this data.
+The array of color combinations to pick from when using `random` for the xColors or yColors. See [`src/utils/colorbrewer.ts`](./src/utils/colorbrewer.ts) for the format of this data.
 
 **`colorSpace`**
 
@@ -246,7 +246,7 @@ String, defaults to `'lab'`. Set the color space used for generating gradients. 
 
 Specify a custom function for coloring triangles, defaults to `null`. Accepts a function to override the standard gradient coloring, which is passed a variety of data about the pattern and each polygon and must return a Chroma.js color object.
 
-See [`examples/color-function-example.html`](./examples/color-function-example.html) and [`src/utils/colorFunctions.js`](./src/utils/colorFunctions.js) for more information about the built-in color functions, and how to write custom color functions.
+See [`examples/color-function-example.html`](./examples/color-function-example.html) and [`src/utils/colorFunctions.ts`](./src/utils/colorFunctions.ts) for more information about the built-in color functions, and how to write custom color functions.
 
 **`fill`**
 
