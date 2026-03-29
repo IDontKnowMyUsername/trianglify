@@ -1,4 +1,5 @@
 v5
+- optimize rendering pipeline: cache CSS colors and reduce per-polygon overhead
 - clean up dead code, unused deps, and leaked internal types
 - modernize: improve type safety, fix docs, add AbortController support
 - improve type safety: fix palette union type, add RenderOpts interface, eliminate unsafe type casts
