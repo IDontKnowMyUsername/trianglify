@@ -686,6 +686,472 @@ describe('Varied triangulation inputs', () => {
   })
 })
 
+describe('Shape option', () => {
+  const shapes = ['triangle', 'pentagon', 'hexagon', 'heptagon', 'octagon', 'circle'] as const
+  const expectedVertexCounts: Record<string, number> = {
+    pentagon: 5,
+    hexagon: 6,
+    heptagon: 7,
+    octagon: 8
+  }
+
+  test('should throw on invalid shape values', () => {
+    expect(() => trianglify({ shape: 'invalid' as any })).toThrow('invalid shape')
+    expect(() => trianglify({ shape: '' as any })).toThrow('invalid shape')
+  })
+
+  shapes.forEach(shape => {
+    test(`should generate a valid pattern with shape: '${shape}'`, () => {
+      const pattern = trianglify({
+        width: 100,
+        height: 100,
+        cellSize: 25,
+        shape,
+        seed: `shape-${shape}`
+      })
+      expect(pattern).toBeInstanceOf(Pattern)
+      expect(pattern.polys.length).toBeGreaterThan(0)
+    })
+  })
+
+  test('triangle shape should use Delaunay (3 vertices per poly)', () => {
+    const pattern = trianglify({
+      width: 100,
+      height: 100,
+      cellSize: 25,
+      shape: 'triangle',
+      seed: 'tri-verts'
+    })
+    pattern.polys.forEach((poly: { vertexIndices: number[] }) => {
+      expect(poly.vertexIndices).toHaveLength(3)
+    })
+  })
+
+  Object.entries(expectedVertexCounts).forEach(([shape, count]) => {
+    test(`${shape} primary polys should have ${count} vertex indices`, () => {
+      const pattern = trianglify({
+        width: 100,
+        height: 100,
+        cellSize: 25,
+        shape: shape as any,
+        seed: `verts-${shape}`
+      })
+      // Primary shapes have N vertex indices; gap-filling triangles have 3
+      const primaryPolys = pattern.polys.filter((p: { vertexIndices: number[] }) => p.vertexIndices.length === count)
+      const gapPolys = pattern.polys.filter((p: { vertexIndices: number[] }) => p.vertexIndices.length === 3)
+      expect(primaryPolys.length).toBeGreaterThan(0)
+      expect(gapPolys.length).toBeGreaterThan(0)
+      expect(primaryPolys.length + gapPolys.length).toBe(pattern.polys.length)
+    })
+  })
+
+  test('circle polys should include circles with radius and gap-filling triangles', () => {
+    const pattern = trianglify({
+      width: 100,
+      height: 100,
+      cellSize: 25,
+      shape: 'circle',
+      seed: 'circle-check'
+    })
+    const circles = pattern.polys.filter((p: { vertexIndices: number[]; radius?: number }) =>
+      p.vertexIndices.length === 0 && p.radius != null)
+    const gaps = pattern.polys.filter((p: { vertexIndices: number[] }) =>
+      p.vertexIndices.length === 3)
+    expect(circles.length).toBeGreaterThan(0)
+    expect(gaps.length).toBeGreaterThan(0)
+    circles.forEach((poly: { radius?: number }) => {
+      expect(poly.radius).toBeGreaterThan(0)
+    })
+  })
+
+  test('shapes should be deterministic when seeded', () => {
+    const p1 = trianglify({ seed: 'hex-det', shape: 'hexagon', width: 100, height: 100 })
+    const p2 = trianglify({ seed: 'hex-det', shape: 'hexagon', width: 100, height: 100 })
+    expect(p1.toSVGTree().toString()).toEqual(p2.toSVGTree().toString())
+  })
+
+  test('hexagon with grid should produce honeycomb offset', () => {
+    const pattern = trianglify({
+      width: 100,
+      height: 100,
+      cellSize: 25,
+      variance: 0,
+      shape: 'hexagon',
+      pointGeneration: 'grid',
+      seed: 'honeycomb'
+    })
+    expect(pattern).toBeInstanceOf(Pattern)
+    expect(pattern.polys.length).toBeGreaterThan(0)
+  })
+})
+
+describe('Shape SVG rendering', () => {
+  test('circle shape should render <circle> and gap-filling <path> elements in SVG', () => {
+    const pattern = trianglify({
+      width: 100,
+      height: 100,
+      cellSize: 25,
+      shape: 'circle',
+      seed: 'svg-circle'
+    })
+    const svgStr = pattern.toSVGTree().toString()
+    expect(svgStr).toContain('<circle')
+    expect(svgStr).toContain('cx=')
+    expect(svgStr).toContain('cy=')
+    expect(svgStr).toContain('r=')
+    // Gap-filling triangles are rendered as <path> elements
+    expect(svgStr).toContain('<path')
+  })
+
+  test('hexagon shape should render <path> elements including hexagons and gap triangles', () => {
+    const pattern = trianglify({
+      width: 100,
+      height: 100,
+      cellSize: 25,
+      shape: 'hexagon',
+      seed: 'svg-hex'
+    })
+    const svgStr = pattern.toSVGTree().toString()
+    expect(svgStr).toContain('<path')
+    const paths = svgStr.match(/ d='[^']+'/g)
+    expect(paths).not.toBeNull()
+    // Hexagon paths have M + 5 L + Z; gap triangles have M + 2 L + Z
+    const hexPaths = paths!.filter((d: string) => (d.match(/L/g) || []).length === 5)
+    const gapPaths = paths!.filter((d: string) => (d.match(/L/g) || []).length === 2)
+    expect(hexPaths.length).toBeGreaterThan(0)
+    expect(gapPaths.length).toBeGreaterThan(0)
+  })
+
+  test('circle shape SVG with stroke', () => {
+    const pattern = trianglify({
+      width: 100,
+      height: 100,
+      cellSize: 25,
+      shape: 'circle',
+      strokeWidth: 2,
+      strokeColor: '#ff0000',
+      seed: 'svg-circle-stroke'
+    })
+    const svgStr = pattern.toSVGTree().toString()
+    expect(svgStr).toContain('stroke=')
+    expect(svgStr).toContain('stroke-width')
+  })
+})
+
+describe('Shape canvas rendering', () => {
+  test('circle shape renders to canvas without error', () => {
+    const pattern = trianglify({
+      width: 100,
+      height: 100,
+      cellSize: 25,
+      shape: 'circle',
+      seed: 'canvas-circle'
+    })
+    const canvas = pattern.toCanvas()
+    expect(canvas).toBeDefined()
+  })
+
+  test('hexagon shape renders to canvas without error', () => {
+    const pattern = trianglify({
+      width: 100,
+      height: 100,
+      cellSize: 25,
+      shape: 'hexagon',
+      seed: 'canvas-hex'
+    })
+    const canvas = pattern.toCanvas()
+    expect(canvas).toBeDefined()
+  })
+
+  test('pentagon shape renders to canvas with stroke', () => {
+    const pattern = trianglify({
+      width: 100,
+      height: 100,
+      cellSize: 25,
+      shape: 'pentagon',
+      strokeWidth: 2,
+      seed: 'canvas-pent-stroke'
+    })
+    const canvas = pattern.toCanvas()
+    expect(canvas).toBeDefined()
+  })
+})
+
+describe('Shape serialization', () => {
+  test('toData/fromData roundtrip with hexagon shape', () => {
+    const pattern = trianglify({
+      width: 100,
+      height: 100,
+      cellSize: 25,
+      shape: 'hexagon',
+      seed: 'ser-hex'
+    })
+    const data = pattern.toData()
+    expect(data.opts.shape).toBe('hexagon')
+    const restored = Pattern.fromData(data)
+    expect(restored.toSVGTree().toString()).toEqual(pattern.toSVGTree().toString())
+  })
+
+  test('toData/fromData roundtrip with circle shape', () => {
+    const pattern = trianglify({
+      width: 100,
+      height: 100,
+      cellSize: 25,
+      shape: 'circle',
+      seed: 'ser-circle'
+    })
+    const data = pattern.toData()
+    expect(data.opts.shape).toBe('circle')
+    const circlePolys = data.polys.filter((p: { radius?: number }) => p.radius != null)
+    expect(circlePolys.length).toBeGreaterThan(0)
+    circlePolys.forEach((poly: { radius?: number }) => {
+      expect(poly.radius).toBeGreaterThan(0)
+    })
+    const restored = Pattern.fromData(data)
+    expect(restored.toSVGTree().toString()).toEqual(pattern.toSVGTree().toString())
+  })
+})
+
+describe('Spiral point generation', () => {
+  test('should generate a pattern with spiral point generation', () => {
+    const pattern = trianglify({
+      width: 200,
+      height: 200,
+      cellSize: 30,
+      pointGeneration: 'spiral',
+      seed: 'spiral-test'
+    })
+    expect(pattern).toBeInstanceOf(Pattern)
+    expect(pattern.points.length).toBeGreaterThan(10)
+    expect(pattern.polys.length).toBeGreaterThan(0)
+  })
+
+  test('spiral should be deterministic when seeded', () => {
+    const p1 = trianglify({ seed: 'spiral-det', pointGeneration: 'spiral', width: 100, height: 100 })
+    const p2 = trianglify({ seed: 'spiral-det', pointGeneration: 'spiral', width: 100, height: 100 })
+    expect(p1.toSVGTree().toString()).toEqual(p2.toSVGTree().toString())
+  })
+
+  test('spiral with clockwise direction', () => {
+    const pattern = trianglify({
+      width: 100,
+      height: 100,
+      pointGeneration: 'spiral',
+      spiralDirection: 'cw',
+      seed: 'spiral-cw'
+    })
+    expect(pattern).toBeInstanceOf(Pattern)
+  })
+
+  test('spiral with counterclockwise direction', () => {
+    const pattern = trianglify({
+      width: 100,
+      height: 100,
+      pointGeneration: 'spiral',
+      spiralDirection: 'ccw',
+      seed: 'spiral-ccw'
+    })
+    expect(pattern).toBeInstanceOf(Pattern)
+  })
+
+  test('cw and ccw spirals should produce different patterns', () => {
+    const cw = trianglify({ seed: 'dir-test', pointGeneration: 'spiral', spiralDirection: 'cw', width: 100, height: 100 })
+    const ccw = trianglify({ seed: 'dir-test', pointGeneration: 'spiral', spiralDirection: 'ccw', width: 100, height: 100 })
+    expect(cw.toSVGTree().toString()).not.toEqual(ccw.toSVGTree().toString())
+  })
+
+  test('spiral with golden ratio (default)', () => {
+    const pattern = trianglify({
+      width: 100,
+      height: 100,
+      pointGeneration: 'spiral',
+      spiralRatio: 'golden',
+      seed: 'spiral-golden'
+    })
+    expect(pattern).toBeInstanceOf(Pattern)
+  })
+
+  test('spiral with custom numeric ratio', () => {
+    const pattern = trianglify({
+      width: 100,
+      height: 100,
+      pointGeneration: 'spiral',
+      spiralRatio: 2,
+      seed: 'spiral-ratio-2'
+    })
+    expect(pattern).toBeInstanceOf(Pattern)
+  })
+
+  test('different ratios should produce different patterns', () => {
+    const golden = trianglify({ seed: 'ratio-test', pointGeneration: 'spiral', spiralRatio: 'golden', width: 100, height: 100 })
+    const two = trianglify({ seed: 'ratio-test', pointGeneration: 'spiral', spiralRatio: 2, width: 100, height: 100 })
+    expect(golden.toSVGTree().toString()).not.toEqual(two.toSVGTree().toString())
+  })
+
+  test('spiral combined with hexagon shape', () => {
+    const pattern = trianglify({
+      width: 100,
+      height: 100,
+      cellSize: 25,
+      pointGeneration: 'spiral',
+      shape: 'hexagon',
+      seed: 'spiral-hex'
+    })
+    expect(pattern).toBeInstanceOf(Pattern)
+    expect(pattern.polys.length).toBeGreaterThan(0)
+  })
+
+  test('spiral with zero variance', () => {
+    const pattern = trianglify({
+      width: 100,
+      height: 100,
+      variance: 0,
+      pointGeneration: 'spiral',
+      seed: 'spiral-novar'
+    })
+    expect(pattern.points.length).toBeGreaterThan(3)
+  })
+})
+
+describe('Spiral option validation', () => {
+  test('should throw on invalid spiralDirection', () => {
+    expect(() => trianglify({ spiralDirection: 'invalid' as any })).toThrow('invalid spiralDirection')
+  })
+
+  test('should throw on invalid spiralRatio', () => {
+    expect(() => trianglify({ spiralRatio: 0 })).toThrow('invalid spiralRatio')
+    expect(() => trianglify({ spiralRatio: -1 })).toThrow('invalid spiralRatio')
+    expect(() => trianglify({ spiralRatio: NaN as any })).toThrow('invalid spiralRatio')
+    expect(() => trianglify({ spiralRatio: 'invalid' as any })).toThrow('invalid spiralRatio')
+  })
+
+  test('should accept valid spiral options', () => {
+    expect(() => trianglify({ pointGeneration: 'spiral', spiralDirection: 'cw', spiralRatio: 'golden', seed: 'valid' })).not.toThrow()
+    expect(() => trianglify({ pointGeneration: 'spiral', spiralDirection: 'ccw', spiralRatio: 3, seed: 'valid2' })).not.toThrow()
+  })
+})
+
+describe('Sphere point generation', () => {
+  test('should generate a pattern with sphere point generation', () => {
+    const pattern = trianglify({
+      width: 200,
+      height: 200,
+      cellSize: 30,
+      pointGeneration: 'sphere',
+      seed: 'sphere-test'
+    })
+    expect(pattern).toBeInstanceOf(Pattern)
+    expect(pattern.points.length).toBeGreaterThan(10)
+    expect(pattern.polys.length).toBeGreaterThan(0)
+  })
+
+  test('sphere should be deterministic when seeded', () => {
+    const p1 = trianglify({ seed: 'sphere-det', pointGeneration: 'sphere', width: 100, height: 100 })
+    const p2 = trianglify({ seed: 'sphere-det', pointGeneration: 'sphere', width: 100, height: 100 })
+    expect(p1.toSVGTree().toString()).toEqual(p2.toSVGTree().toString())
+  })
+
+  test('sphere with zero variance', () => {
+    const pattern = trianglify({
+      width: 100,
+      height: 100,
+      variance: 0,
+      pointGeneration: 'sphere',
+      seed: 'sphere-novar'
+    })
+    expect(pattern.points.length).toBeGreaterThan(3)
+  })
+
+  test('sphere combined with circle shape', () => {
+    const pattern = trianglify({
+      width: 100,
+      height: 100,
+      cellSize: 25,
+      pointGeneration: 'sphere',
+      shape: 'circle',
+      seed: 'sphere-circle'
+    })
+    expect(pattern).toBeInstanceOf(Pattern)
+    expect(pattern.polys.length).toBeGreaterThan(0)
+  })
+})
+
+describe('Radial and angular color functions', () => {
+  test('should export radial color function', () => {
+    expect(trianglify.colorFunctions.radial).toBeInstanceOf(Function)
+  })
+
+  test('should export angular color function', () => {
+    expect(trianglify.colorFunctions.angular).toBeInstanceOf(Function)
+  })
+
+  test('radial color function generates valid pattern', () => {
+    const pattern = trianglify({
+      colorFunction: trianglify.colorFunctions.radial(),
+      seed: 'radial-test'
+    })
+    expect(pattern).toBeInstanceOf(Pattern)
+    expect(pattern.polys.length).toBeGreaterThan(0)
+  })
+
+  test('radial with custom falloff', () => {
+    const pattern = trianglify({
+      colorFunction: trianglify.colorFunctions.radial(0.5),
+      seed: 'radial-falloff'
+    })
+    expect(pattern).toBeInstanceOf(Pattern)
+  })
+
+  test('angular color function generates valid pattern', () => {
+    const pattern = trianglify({
+      colorFunction: trianglify.colorFunctions.angular(),
+      seed: 'angular-test'
+    })
+    expect(pattern).toBeInstanceOf(Pattern)
+    expect(pattern.polys.length).toBeGreaterThan(0)
+  })
+
+  test('angular with custom offset', () => {
+    const pattern = trianglify({
+      colorFunction: trianglify.colorFunctions.angular(Math.PI / 4),
+      seed: 'angular-offset'
+    })
+    expect(pattern).toBeInstanceOf(Pattern)
+  })
+
+  test('radial color function has serializable descriptor', () => {
+    const fn = trianglify.colorFunctions.radial(0.5)
+    expect(fn._descriptor).toEqual({ name: 'radial', args: [0.5] })
+  })
+
+  test('angular color function has serializable descriptor', () => {
+    const fn = trianglify.colorFunctions.angular(1.0)
+    expect(fn._descriptor).toEqual({ name: 'angular', args: [1.0] })
+  })
+
+  test('radial with spiral layout', () => {
+    const pattern = trianglify({
+      width: 100,
+      height: 100,
+      pointGeneration: 'spiral',
+      colorFunction: trianglify.colorFunctions.radial(),
+      seed: 'radial-spiral'
+    })
+    expect(pattern).toBeInstanceOf(Pattern)
+  })
+
+  test('angular with spiral layout', () => {
+    const pattern = trianglify({
+      width: 100,
+      height: 100,
+      pointGeneration: 'spiral',
+      colorFunction: trianglify.colorFunctions.angular(),
+      seed: 'angular-spiral'
+    })
+    expect(pattern).toBeInstanceOf(Pattern)
+  })
+})
+
 describe('TrianglifyWorker (CJS coverage)', () => {
   const mockWorkerInstances: MockWorker[] = []
 

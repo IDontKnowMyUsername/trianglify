@@ -67,14 +67,16 @@ export default class Pattern {
   // Chroma color objects are converted to CSS strings.
   toData = (): PatternData => {
     const { width, height, fill, strokeWidth, strokeColor } = this.opts
+    const shape = 'shape' in this.opts ? this.opts.shape : 'triangle' as const
     return {
       points: this.points,
       polys: this.polys.map(poly => ({
         vertexIndices: poly.vertexIndices,
         centroid: poly.centroid,
-        color: poly.color.css()
+        color: poly.color.css(),
+        ...(poly.radius != null ? { radius: poly.radius } : {})
       })),
-      opts: { width, height, fill, strokeWidth, strokeColor }
+      opts: { width, height, fill, strokeWidth, strokeColor, shape }
     }
   }
 
@@ -84,7 +86,8 @@ export default class Pattern {
     const polys: Polygon[] = data.polys.map(poly => ({
       vertexIndices: poly.vertexIndices,
       centroid: poly.centroid,
-      color: { css: () => poly.color }
+      color: { css: () => poly.color },
+      ...(poly.radius != null ? { radius: poly.radius } : {})
     }))
     return new Pattern(data.points, polys, data.opts)
   }
@@ -105,10 +108,28 @@ export default class Pattern {
           return points.map(p => p.map(x => Math.round(x * factor) / factor))
         })()
 
+    const round = svgOpts.coordinateDecimals < 0
+      ? (v: number) => v
+      : (() => { const f = 10 ** svgOpts.coordinateDecimals; return (v: number) => Math.round(v * f) / f })()
+
     const paths = polys.map((poly) => {
+      const hasStroke = strokeWidth > 0
+
+      // Circle shapes: render as <circle> instead of <path>
+      if (poly.radius != null && poly.vertexIndices.length === 0) {
+        return s('circle', {
+          cx: round(poly.centroid.x),
+          cy: round(poly.centroid.y),
+          r: round(poly.radius),
+          fill: fill ? poly.color.css() : undefined,
+          stroke: hasStroke ? (strokeColor || poly.color.css()) : undefined,
+          'stroke-width': hasStroke ? strokeWidth : undefined
+        })
+      }
+
+      // Polygon shapes (triangles, N-gons): render as <path>
       const xys = poly.vertexIndices.map(i => `${roundedPoints[i]![0]},${roundedPoints[i]![1]}`)
       const d = `M${xys.join('L')}Z`
-      const hasStroke = strokeWidth > 0
       // shape-rendering crispEdges resolves the antialiasing issues, at the
       // potential cost of some visual degradation. For the best performance
       // *and* best visual rendering, use Canvas.
@@ -186,14 +207,22 @@ export default class Pattern {
     ctx.lineJoin = 'round'
 
     const drawPoly = (poly: Polygon, polyFill: { color: CSSColor } | null | false, stroke: { color: CSSColor; width: number } | false) => {
-      const vertexIndices = poly.vertexIndices
-      const [ax, ay] = points[vertexIndices[0]!]!
-      const [bx, by] = points[vertexIndices[1]!]!
-      const [cx, cy] = points[vertexIndices[2]!]!
       ctx.beginPath()
-      ctx.moveTo(ax, ay)
-      ctx.lineTo(bx, by)
-      ctx.lineTo(cx, cy)
+
+      if (poly.radius != null && poly.vertexIndices.length === 0) {
+        // Circle shape
+        ctx.arc(poly.centroid.x, poly.centroid.y, poly.radius, 0, 2 * Math.PI)
+      } else {
+        // Polygon shape (triangles, N-gons)
+        const indices = poly.vertexIndices
+        const [firstX, firstY] = points[indices[0]!]!
+        ctx.moveTo(firstX, firstY)
+        for (let i = 1; i < indices.length; i++) {
+          const [x, y] = points[indices[i]!]!
+          ctx.lineTo(x, y)
+        }
+      }
+
       ctx.closePath()
       if (polyFill) {
         ctx.fillStyle = polyFill.color.css()

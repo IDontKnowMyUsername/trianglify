@@ -78,6 +78,29 @@ describe('Options Parsing', () => {
     expect(() => trianglify({ pointGeneration: 'grid', seed: 'test' })).not.toThrow()
     expect(() => trianglify({ pointGeneration: 'poisson', seed: 'test' })).not.toThrow()
     expect(() => trianglify({ pointGeneration: 'bestCandidate', seed: 'test' })).not.toThrow()
+    expect(() => trianglify({ pointGeneration: 'spiral', seed: 'test' })).not.toThrow()
+    expect(() => trianglify({ pointGeneration: 'sphere', seed: 'test' })).not.toThrow()
+  })
+
+  test('should throw an error on invalid shape', () => {
+    expect(() => trianglify({ shape: 'invalid' as any })).toThrow()
+    expect(() => trianglify({ shape: '' as any })).toThrow()
+  })
+
+  test('should accept valid shape values', () => {
+    const shapes = ['triangle', 'pentagon', 'hexagon', 'heptagon', 'octagon', 'circle'] as const
+    shapes.forEach(shape => {
+      expect(() => trianglify({ shape, seed: 'shape-test' })).not.toThrow()
+    })
+  })
+
+  test('should throw on invalid spiralDirection', () => {
+    expect(() => trianglify({ spiralDirection: 'invalid' as any })).toThrow()
+  })
+
+  test('should throw on invalid spiralRatio', () => {
+    expect(() => trianglify({ spiralRatio: 0 })).toThrow()
+    expect(() => trianglify({ spiralRatio: -1 })).toThrow()
   })
 })
 
@@ -155,6 +178,31 @@ describe('Pattern generation', () => {
 
   test('should match snapshot for non-breaking version bumps', () => {
     expect(trianglify({ seed: 'snapshotText' }).toSVG()).toMatchSnapshot()
+  })
+
+  test('should generate well-formed geometry with spiral point generation', () => {
+    const pattern = trianglify({ height: 100, width: 100, cellSize: 20, pointGeneration: 'spiral', seed: 'spiral-browser' })
+    expect(pattern).toBeInstanceOf(Pattern)
+    expect(pattern.points).toBeInstanceOf(Array)
+    expect(pattern.points.length).toBeGreaterThan(3)
+    expect(pattern.polys.length).toBeGreaterThan(0)
+  })
+
+  test('should generate well-formed geometry with sphere point generation', () => {
+    const pattern = trianglify({ height: 100, width: 100, cellSize: 20, pointGeneration: 'sphere', seed: 'sphere-browser' })
+    expect(pattern).toBeInstanceOf(Pattern)
+    expect(pattern.points).toBeInstanceOf(Array)
+    expect(pattern.points.length).toBeGreaterThan(3)
+    expect(pattern.polys.length).toBeGreaterThan(0)
+  })
+
+  test('should generate well-formed geometry with hexagon shape', () => {
+    const pattern = trianglify({ height: 100, width: 100, cellSize: 20, shape: 'hexagon', seed: 'hex-browser' })
+    expect(pattern).toBeInstanceOf(Pattern)
+    expect(pattern.polys.length).toBeGreaterThan(0)
+    // polys include primary hexagons (6 vertices) and gap-filling triangles (3 vertices)
+    const hexPolys = pattern.polys.filter((p: { vertexIndices: number[] }) => p.vertexIndices.length === 6)
+    expect(hexPolys.length).toBeGreaterThan(0)
   })
 
   test('should generate well-formed geometry with poisson point generation', () => {

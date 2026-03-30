@@ -1,12 +1,16 @@
 import type { Point, Centroid } from '../types'
 
-// Given three coordinates representing a triangle, find the centroid
-// of the triangle and return it as an {x, y} object
-export const getCentroid = (d: [Point, Point, Point]): Centroid => {
-  return {
-    x: (d[0][0] + d[1][0] + d[2][0]) / 3,
-    y: (d[0][1] + d[1][1] + d[2][1]) / 3
+// Given an array of coordinates, find the centroid and return it as {x, y}.
+// Works with any number of vertices (triangles, N-gons, etc.)
+export const getCentroid = (d: Point[]): Centroid => {
+  const n = d.length
+  let x = 0
+  let y = 0
+  for (let i = 0; i < n; i++) {
+    x += d[i]![0]
+    y += d[i]![1]
   }
+  return { x: x / n, y: y / n }
 }
 
 export const getTopmostVertexIndex = (vertexIndices: number[], points: Point[]): number => (

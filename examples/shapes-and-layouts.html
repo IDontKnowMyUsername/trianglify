@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Trianglify - Shapes &amp; Layouts Demo</title>
+    <style>
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: #1a1a2e;
+      font-family: system-ui, -apple-system, sans-serif;
+      color: #e0e0e0;
+    }
+    header {
+      text-align: center;
+      padding: 40px 20px 20px;
+    }
+    header h1 {
+      font-size: 28px;
+      margin: 0 0 8px;
+      color: #fff;
+    }
+    header p {
+      font-size: 14px;
+      color: #999;
+      margin: 0;
+    }
+
+    /* ─── Gallery view ─── */
+    #gallery .section {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    #gallery .section h2 {
+      font-size: 20px;
+      margin: 30px 0 16px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #333;
+      color: #ccc;
+    }
+    #gallery .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+      gap: 20px;
+    }
+    #gallery .card {
+      background: #16213e;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid #2a2a4a;
+      cursor: pointer;
+      transition: transform 0.15s, border-color 0.15s;
+    }
+    #gallery .card:hover {
+      transform: translateY(-2px);
+      border-color: #7ec8e3;
+    }
+    #gallery .card svg {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+    #gallery .card .label {
+      padding: 10px 14px;
+      font-size: 13px;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      color: #aaa;
+      background: #0f1629;
+      border-top: 1px solid #2a2a4a;
+    }
+    .key { color: #7ec8e3; }
+    .val { color: #f0a500; }
+
+    /* ─── Detail view ─── */
+    #detail {
+      display: none;
+      padding: 20px;
+    }
+    #detail.active {
+      display: block;
+    }
+    #gallery.hidden {
+      display: none;
+    }
+    #back-btn {
+      display: inline-block;
+      margin: 0 0 16px;
+      padding: 8px 18px;
+      background: #16213e;
+      border: 1px solid #2a2a4a;
+      border-radius: 6px;
+      color: #7ec8e3;
+      font-size: 14px;
+      cursor: pointer;
+      font-family: system-ui, sans-serif;
+    }
+    #back-btn:hover {
+      background: #1a2744;
+      border-color: #7ec8e3;
+    }
+    #detail-label {
+      font-size: 15px;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      color: #aaa;
+      margin: 12px 0 0;
+    }
+    #detail svg {
+      display: block;
+      width: 100%;
+      height: auto;
+      border-radius: 6px;
+    }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Trianglify Shapes &amp; Layouts</h1>
+      <p>Click any card to see it full-width</p>
+    </header>
+
+    <div id="gallery"></div>
+
+    <div id="detail">
+      <button id="back-btn">&larr; Back to gallery</button>
+      <div id="detail-svg"></div>
+      <div id="detail-label"></div>
+    </div>
+
+    <script src="../dist/trianglify.bundle.debug.js"></script>
+    <script>
+      const THUMB_W = 400, THUMB_H = 300
+      const seed = 'demo-2024'
+      const gallery = document.getElementById('gallery')
+      const detail = document.getElementById('detail')
+      const detailSvg = document.getElementById('detail-svg')
+      const detailLabel = document.getElementById('detail-label')
+      const backBtn = document.getElementById('back-btn')
+
+      // Store all pattern configs so we can re-render at full width on click
+      const patterns = []
+
+      function addSection(title) {
+        const section = document.createElement('div')
+        section.className = 'section'
+        const h2 = document.createElement('h2')
+        h2.textContent = title
+        section.appendChild(h2)
+        const grid = document.createElement('div')
+        grid.className = 'grid'
+        section.appendChild(grid)
+        gallery.appendChild(section)
+        return grid
+      }
+
+      function addCard(grid, opts, description) {
+        const idx = patterns.length
+        patterns.push({ opts, description })
+
+        const pattern = trianglify({ ...opts, width: THUMB_W, height: THUMB_H })
+        const card = document.createElement('div')
+        card.className = 'card'
+        card.dataset.idx = idx
+        card.appendChild(pattern.toSVG())
+        const label = document.createElement('div')
+        label.className = 'label'
+        label.innerHTML = description
+        card.appendChild(label)
+        grid.appendChild(card)
+
+        card.addEventListener('click', () => showDetail(idx))
+      }
+
+      function showDetail(idx) {
+        const { opts, description } = patterns[idx]
+        const fullW = Math.max(document.documentElement.clientWidth - 40, 600)
+        const fullH = Math.round(fullW * 0.6)
+        const scale = fullW / THUMB_W
+        const detailOpts = { ...opts, width: fullW, height: fullH }
+        if (opts.cellSize) detailOpts.cellSize = Math.round(opts.cellSize * scale)
+        const pattern = trianglify(detailOpts)
+        detailSvg.innerHTML = ''
+        detailSvg.appendChild(pattern.toSVG())
+        detailLabel.innerHTML = description
+        gallery.classList.add('hidden')
+        detail.classList.add('active')
+        window.scrollTo(0, 0)
+        history.pushState({ idx }, '')
+      }
+
+      function showGallery() {
+        detail.classList.remove('active')
+        gallery.classList.remove('hidden')
+      }
+
+      backBtn.addEventListener('click', () => {
+        showGallery()
+        history.back()
+      })
+
+      window.addEventListener('popstate', (e) => {
+        if (e.state && e.state.idx != null) {
+          showDetail(e.state.idx)
+        } else {
+          showGallery()
+        }
+      })
+
+      function opt(key, val) {
+        return `<span class="key">${key}</span>: <span class="val">${val}</span>`
+      }
+
+      // ─── Section 1: Tile Shapes ────────────────────────────────
+      const shapesGrid = addSection('Tile Shapes')
+      const shapes = [
+        ['triangle', 'Triangle (default)'],
+        ['pentagon', 'Pentagon (regular, gap-filled)'],
+        ['pentagon-cairo', 'Pentagon (Cairo tiling)'],
+        ['pentagon-convex', 'Pentagon (irregular convex)'],
+        ['pentagon-nonconvex', 'Pentagon (irregular non-convex)'],
+        ['hexagon', 'Hexagon'],
+        ['heptagon', 'Heptagon'],
+        ['octagon', 'Octagon'],
+        ['circle', 'Circle']
+      ]
+      shapes.forEach(([shape, label]) => {
+        addCard(shapesGrid, {
+          seed,
+          cellSize: 40,
+          xColors: 'YlGnBu',
+          shape
+        }, `${opt('shape', `'${shape}'`)} &mdash; ${label}`)
+      })
+
+      // ─── Section 2: Hexagon Honeycomb (grid vs other layouts) ──
+      const honeycombGrid = addSection('Hexagons with Different Layouts')
+      const hexLayouts = [
+        { pointGeneration: 'grid', label: 'grid (honeycomb offset)' },
+        { pointGeneration: 'poisson', label: 'poisson' },
+        { pointGeneration: 'bestCandidate', label: 'bestCandidate' },
+        { pointGeneration: 'spiral', label: 'spiral' }
+      ]
+      hexLayouts.forEach(({ pointGeneration, label }) => {
+        addCard(honeycombGrid, {
+          seed,
+          cellSize: 35,
+          shape: 'hexagon',
+          xColors: 'Spectral',
+          pointGeneration
+        }, `${opt('shape', "'hexagon'")} ${opt('pointGeneration', `'${pointGeneration}'`)}<br>${label}`)
+      })
+
+      // ─── Section 3: Spiral Layouts ─────────────────────────────
+      const spiralGrid = addSection('Spiral Point Generation')
+
+      addCard(spiralGrid, {
+        seed, cellSize: 40,
+        pointGeneration: 'spiral',
+        xColors: 'RdYlBu'
+      }, `${opt('pointGeneration', "'spiral'")} ${opt('spiralRatio', "'golden'")}`)
+
+      addCard(spiralGrid, {
+        seed, cellSize: 40,
+        pointGeneration: 'spiral',
+        spiralDirection: 'cw',
+        xColors: 'RdYlBu'
+      }, `${opt('spiralDirection', "'cw'")} (clockwise)`)
+
+      addCard(spiralGrid, {
+        seed, cellSize: 40,
+        pointGeneration: 'spiral',
+        spiralDirection: 'ccw',
+        xColors: 'RdYlBu'
+      }, `${opt('spiralDirection', "'ccw'")} (counterclockwise)`)
+
+      addCard(spiralGrid, {
+        seed, cellSize: 40,
+        pointGeneration: 'spiral',
+        spiralRatio: 2,
+        xColors: 'PuOr'
+      }, `${opt('spiralRatio', '2')} (2-arm spiral)`)
+
+      addCard(spiralGrid, {
+        seed, cellSize: 40,
+        pointGeneration: 'spiral',
+        spiralRatio: 3,
+        xColors: 'PuOr'
+      }, `${opt('spiralRatio', '3')} (3-arm spiral)`)
+
+      addCard(spiralGrid, {
+        seed, cellSize: 35,
+        pointGeneration: 'spiral',
+        shape: 'hexagon',
+        xColors: 'BrBG'
+      }, `${opt('pointGeneration', "'spiral'")} + ${opt('shape', "'hexagon'")}`)
+
+      addCard(spiralGrid, {
+        seed, cellSize: 35,
+        pointGeneration: 'spiral',
+        shape: 'circle',
+        xColors: 'RdYlGn'
+      }, `${opt('pointGeneration', "'spiral'")} + ${opt('shape', "'circle'")}`)
+
+      addCard(spiralGrid, {
+        seed, cellSize: 35,
+        pointGeneration: 'spiral',
+        shape: 'pentagon',
+        xColors: 'PuBuGn'
+      }, `${opt('pointGeneration', "'spiral'")} + ${opt('shape', "'pentagon'")}`)
+
+      // ─── Section 4: Sphere Layout ─────────────────────────────
+      const sphereGrid = addSection('Sphere Point Generation')
+
+      addCard(sphereGrid, {
+        seed, cellSize: 40,
+        pointGeneration: 'sphere',
+        xColors: 'BuPu'
+      }, `${opt('pointGeneration', "'sphere'")} with triangles`)
+
+      addCard(sphereGrid, {
+        seed, cellSize: 35,
+        pointGeneration: 'sphere',
+        shape: 'hexagon',
+        xColors: 'YlOrRd'
+      }, `${opt('pointGeneration', "'sphere'")} + ${opt('shape', "'hexagon'")}`)
+
+      addCard(sphereGrid, {
+        seed, cellSize: 35,
+        pointGeneration: 'sphere',
+        shape: 'circle',
+        xColors: 'GnBu'
+      }, `${opt('pointGeneration', "'sphere'")} + ${opt('shape', "'circle'")}`)
+
+      addCard(sphereGrid, {
+        seed, cellSize: 35,
+        pointGeneration: 'sphere',
+        shape: 'octagon',
+        xColors: 'PiYG'
+      }, `${opt('pointGeneration', "'sphere'")} + ${opt('shape', "'octagon'")}`)
+
+      // ─── Section 5: New Color Functions ─────────────────────────
+      const colorGrid = addSection('New Color Functions')
+
+      addCard(colorGrid, {
+        seed, cellSize: 30,
+        xColors: 'Spectral',
+        colorFunction: trianglify.colorFunctions.radial()
+      }, `${opt('colorFunction', 'radial()')} &mdash; distance from center`)
+
+      addCard(colorGrid, {
+        seed, cellSize: 30,
+        xColors: 'Spectral',
+        colorFunction: trianglify.colorFunctions.radial(0.5)
+      }, `${opt('colorFunction', 'radial(0.5)')} &mdash; concentrated center`)
+
+      addCard(colorGrid, {
+        seed, cellSize: 30,
+        xColors: 'Spectral',
+        colorFunction: trianglify.colorFunctions.radial(2)
+      }, `${opt('colorFunction', 'radial(2)')} &mdash; concentrated edges`)
+
+      addCard(colorGrid, {
+        seed, cellSize: 30,
+        xColors: 'Spectral',
+        colorFunction: trianglify.colorFunctions.angular()
+      }, `${opt('colorFunction', 'angular()')} &mdash; angle from center`)
+
+      addCard(colorGrid, {
+        seed, cellSize: 30,
+        xColors: 'RdYlBu',
+        colorFunction: trianglify.colorFunctions.angular(Math.PI / 2)
+      }, `${opt('colorFunction', 'angular(PI/2)')} &mdash; rotated 90deg`)
+
+      addCard(colorGrid, {
+        seed, cellSize: 30,
+        pointGeneration: 'spiral',
+        shape: 'circle',
+        xColors: ['#2d1b69', '#7b2ff7', '#ff6b6b', '#ffd93d'],
+        colorFunction: trianglify.colorFunctions.radial()
+      }, `radial() + spiral + circle &mdash; sunflower effect`)
+
+      // ─── Section 6: Shapes with Strokes ────────────────────────
+      const strokeGrid = addSection('Shapes with Strokes')
+
+      addCard(strokeGrid, {
+        seed, cellSize: 40,
+        shape: 'hexagon',
+        fill: false,
+        strokeWidth: 1.5,
+        xColors: 'YlGn'
+      }, `Hexagon wireframe &mdash; ${opt('fill', 'false')} ${opt('strokeWidth', '1.5')}`)
+
+      addCard(strokeGrid, {
+        seed, cellSize: 40,
+        shape: 'circle',
+        fill: false,
+        strokeWidth: 1,
+        xColors: 'PuRd'
+      }, `Circle wireframe &mdash; ${opt('fill', 'false')} ${opt('strokeWidth', '1')}`)
+
+      addCard(strokeGrid, {
+        seed, cellSize: 40,
+        shape: 'octagon',
+        strokeWidth: 2,
+        strokeColor: '#000',
+        xColors: 'OrRd'
+      }, `Octagon with black stroke &mdash; ${opt('strokeColor', "'#000'")}`)
+
+      addCard(strokeGrid, {
+        seed, cellSize: 40,
+        pointGeneration: 'spiral',
+        shape: 'pentagon',
+        strokeWidth: 1,
+        strokeColor: 'rgba(0,0,0,0.3)',
+        xColors: 'BuGn',
+        colorFunction: trianglify.colorFunctions.radial()
+      }, `Spiral pentagons with stroke + radial color`)
+    </script>
+  </body>
+</html>

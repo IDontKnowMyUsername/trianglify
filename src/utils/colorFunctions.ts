@@ -50,3 +50,35 @@ export const shadows = (shadowIntensity = 0.8): ColorFunction => {
   fn._descriptor = { name: 'shadows', args: [shadowIntensity] }
   return fn
 }
+
+// Map color based on distance from center. Pairs well with spiral and
+// sphere layouts. The falloff parameter controls the curve of the gradient
+// (1 = linear, <1 = concentrates color near center, >1 = concentrates at edges).
+export const radial = (falloff = 1): ColorFunction => {
+  const fn: ColorFunction = ({ centroid, xScale, opts }: ColorFunctionParams) => {
+    const cx = opts.width / 2
+    const cy = opts.height / 2
+    const maxDist = Math.sqrt(cx * cx + cy * cy)
+    const dx = centroid.x - cx
+    const dy = centroid.y - cy
+    const dist = Math.sqrt(dx * dx + dy * dy)
+    const t = Math.min(1, (dist / maxDist) ** falloff)
+    return xScale(t)
+  }
+  fn._descriptor = { name: 'radial', args: [falloff] }
+  return fn
+}
+
+// Map color based on angle from center. Pairs well with spiral layouts.
+// The offset parameter rotates the gradient (in radians).
+export const angular = (offset = 0): ColorFunction => {
+  const fn: ColorFunction = ({ centroid, xScale, opts }: ColorFunctionParams) => {
+    const cx = opts.width / 2
+    const cy = opts.height / 2
+    const angle = Math.atan2(centroid.y - cy, centroid.x - cx)
+    const t = ((angle + Math.PI + offset) % (2 * Math.PI)) / (2 * Math.PI)
+    return xScale(t)
+  }
+  fn._descriptor = { name: 'angular', args: [offset] }
+  return fn
+}

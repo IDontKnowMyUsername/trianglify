@@ -2,6 +2,8 @@ import type { Color, Scale } from 'chroma-js'
 
 export type Point = [number, number]
 
+export type Shape = 'triangle' | 'pentagon' | 'pentagon-cairo' | 'pentagon-convex' | 'pentagon-nonconvex' | 'hexagon' | 'heptagon' | 'octagon' | 'circle'
+
 export interface Centroid {
   x: number
   y: number
@@ -26,7 +28,10 @@ export interface TrianglifyOptions {
   strokeWidth: number
   strokeColor: string | null
   points: Point[] | null
-  pointGeneration: 'grid' | 'poisson' | 'bestCandidate'
+  pointGeneration: 'grid' | 'poisson' | 'bestCandidate' | 'spiral' | 'sphere'
+  shape: Shape
+  spiralDirection: 'cw' | 'ccw'
+  spiralRatio: number | 'golden'
 }
 
 export interface ColorFunctionParams {
@@ -51,6 +56,7 @@ export interface Polygon {
   vertexIndices: number[]
   centroid: Centroid
   color: CSSColor
+  radius?: number
 }
 
 export interface RenderOpts {
@@ -59,11 +65,12 @@ export interface RenderOpts {
   fill: boolean
   strokeWidth: number
   strokeColor: string | null
+  shape: Shape
 }
 
 export interface PatternData {
   points: Point[]
-  polys: { vertexIndices: number[]; centroid: Centroid; color: string }[]
+  polys: { vertexIndices: number[]; centroid: Centroid; color: string; radius?: number }[]
   opts: RenderOpts
 }
 
