@@ -128,44 +128,80 @@ function generateCairoTiling(width: number, height: number, cellSize: number): T
 
 // ─── Irregular Convex Pentagon Tiling ────────────────────────────
 //
-// Each regular hexagon in a hex grid is bisected by a line
-// connecting midpoints of two opposite edges, producing 2 congruent
-// convex pentagons. Since hexagons tile, the pentagons tile too.
+// Type 5 convex monohedral tiling (6-fold rosette).
+// Angles: A = B = D = E = 120°, C = 60° (sum 540°).
+// Sides: c = d = s (long, at the 60° vertex), a = b = e = s/2 (short).
+//
+// Construction: at each 6-fold center (C vertex), place 6 pentagons
+// rotated 0°, 60°, 120°, 180°, 240°, 300°. The triangular lattice
+// connects rosette centers with spacing s√21/2.
 
 function generateConvexTiling(width: number, height: number, cellSize: number): TilingResult {
-  const r = cellSize / 2
   const s3 = Math.sqrt(3)
-  const rawPolys: Point[][] = []
+
+  // cellSize = s√21/2 → s = 2·cellSize/√21
+  const s = 2 * cellSize / Math.sqrt(21)
+
+  // Base pentagon (C at origin, edge d along +x):
+  //   C=(0,0), D=(s,0), E=(5s/4, s√3/4), A=(s, s√3/2), B=(s/2, s√3/2)
+  const basePent: Point[] = [
+    [0, 0],
+    [s, 0],
+    [5 * s / 4, s * s3 / 4],
+    [s, s * s3 / 2],
+    [s / 2, s * s3 / 2]
+  ]
+
+  // 6 rotations about the origin (60° CCW each)
+  const c60 = 0.5, s60 = s3 / 2
+  const rotations: ((p: Point) => Point)[] = [
+    ([x, y]) => [x, y],
+    ([x, y]) => [x * c60 - y * s60, x * s60 + y * c60],
+    ([x, y]) => [-x * c60 - y * s60, x * s60 - y * c60],
+    ([x, y]) => [-x, -y],
+    ([x, y]) => [-x * c60 + y * s60, -x * s60 - y * c60],
+    ([x, y]) => [x * c60 + y * s60, -x * s60 + y * c60],
+  ]
+
+  // Triangular lattice vectors (connect rosette centers)
+  const ux = 9 * s / 4, uy = s * s3 / 4
+  const vx = 3 * s / 4, vy = 5 * s * s3 / 4
+
+  // Compute tight (i,j) bounds
   const bleed = 2
-
-  // Hex vertex offsets (flat-top orientation)
-  const hv: Point[] = []
-  for (let k = 0; k < 6; k++) {
-    const angle = k * Math.PI / 3
-    hv.push([r * Math.cos(angle), r * Math.sin(angle)])
+  const det = ux * vy - vx * uy
+  const pad = bleed * cellSize
+  const canvasCorners: Point[] = [
+    [-pad, -pad], [width + pad, -pad],
+    [width + pad, height + pad], [-pad, height + pad]
+  ]
+  let iMin = Infinity, iMax = -Infinity, jMin = Infinity, jMax = -Infinity
+  for (const [px, py] of canvasCorners) {
+    const fi = (vy * px - vx * py) / det
+    const fj = (-uy * px + ux * py) / det
+    iMin = Math.min(iMin, fi); iMax = Math.max(iMax, fi)
+    jMin = Math.min(jMin, fj); jMax = Math.max(jMax, fj)
   }
+  const i0 = Math.floor(iMin) - 1
+  const i1 = Math.ceil(iMax) + 1
+  const j0 = Math.floor(jMin) - 1
+  const j1 = Math.ceil(jMax) + 1
 
-  // Bisection line: midpoint(v0,v1) to midpoint(v3,v4)
-  const m01: Point = [(hv[0]![0] + hv[1]![0]) / 2, (hv[0]![1] + hv[1]![1]) / 2]
-  const m34: Point = [(hv[3]![0] + hv[4]![0]) / 2, (hv[3]![1] + hv[4]![1]) / 2]
+  const rawPolys: Point[][] = []
 
-  const pentA: Point[] = [m01, hv[1]!, hv[2]!, hv[3]!, m34]
-  const pentB: Point[] = [hv[0]!, m01, m34, hv[4]!, hv[5]!]
+  for (let j = j0; j <= j1; j++) {
+    for (let i = i0; i <= i1; i++) {
+      // Rosette center position
+      const cx = i * ux + j * vx
+      const cy = i * uy + j * vy
 
-  // Flat-top hex grid: col spacing = 3r/2, row spacing = r√3
-  const cStep = 1.5 * r
-  const rStep = r * s3
-
-  const cols = Math.ceil(width / cStep) + 2 * bleed
-  const rows = Math.ceil(height / rStep) + 2 * bleed
-
-  for (let row = -bleed; row < rows; row++) {
-    for (let col = -bleed; col < cols; col++) {
-      const hx = col * cStep
-      const hy = row * rStep + (col % 2 !== 0 ? rStep / 2 : 0)
-
-      rawPolys.push(pentA.map(([dx, dy]) => [hx + dx, hy + dy]))
-      rawPolys.push(pentB.map(([dx, dy]) => [hx + dx, hy + dy]))
+      // Generate all 6 rotations of the base pentagon
+      for (const rot of rotations) {
+        rawPolys.push(basePent.map(p => {
+          const [rx, ry] = rot(p)
+          return [rx + cx, ry + cy] as Point
+        }))
+      }
     }
   }
 
@@ -174,31 +210,107 @@ function generateConvexTiling(width: number, height: number, cellSize: number): 
 
 // ─── Irregular Non-Convex Pentagon Tiling ────────────────────────
 //
-// Step/L-shaped pentagons with one reflex angle. Each square cell
-// of side s is split into 2 congruent non-convex pentagons by a
-// staircase cut through the center.
+// Non-convex pentagon tiling forming 12-fold star rosettes.
+// Pentagon tip angle B ≈ 30°; 12 petals × 30° = 360°.
+//
+// Angles: B≈30°, C≈48°, D≈136°, E≈237°(reflex), A≈90° (sum 540°).
+// E is the reflex vertex that creates the indent interlocking
+// adjacent petals. Construction: at each rosette center (B vertex),
+// place 12 pentagons alternating normal and mirror-reflected.
 
 function generateNonconvexTiling(width: number, height: number, cellSize: number): TilingResult {
-  const s = cellSize
-  const rawPolys: Point[][] = []
+  // 12 petals → 30° each. Half-angle = 15°.
+  const halfAngle = Math.PI / 12
+  const cosH = Math.cos(halfAngle)
+  const sinH = Math.sin(halfAngle)
+  const cos3H = Math.cos(3 * halfAngle)
+  const sin3H = Math.sin(3 * halfAngle)
+
+  // Arm lengths and geometry
+  const r = cellSize / 1.68
+  const rBC = r * 1.047  // B→C arm
+  const rAB = r * 0.647  // A→B arm
+
+  // Indent depth: D→E edge length as fraction of r
+  const deFrac = 0.2567
+  const deLen = deFrac * r
+
+  // Edge directions (tuned so adjacent rosettes mesh)
+  const dirCD = 147.4 * Math.PI / 180
+  const dirDE = -168.2 * Math.PI / 180
+  const dirEA = 135.3 * Math.PI / 180
+
+  const C0x = rBC * cosH, C0y = rBC * sinH    // C at 15°
+  const A0x = rAB * cos3H, A0y = rAB * sin3H  // A at 45°
+
+  const cdD = Math.cos(dirCD), sdD = Math.sin(dirCD)
+  const cdE = Math.cos(dirDE), sdE = Math.sin(dirDE)
+  const cdA = Math.cos(dirEA), sdA = Math.sin(dirEA)
+
+  // Solve C→D and E→A lengths from polygon closure
+  const closureX = A0x - C0x - deLen * cdE
+  const closureY = A0y - C0y - deLen * sdE
+  const detM = cdD * sdA - cdA * sdD
+  const cdLen = (closureX * sdA - closureY * cdA) / detM
+
+  const D0x = C0x + cdLen * cdD, D0y = C0y + cdLen * sdD
+  const E0x = D0x + deLen * cdE, E0y = D0y + deLen * sdE
+
+  // Normal pentagon (B at origin)
+  const basePent: Point[] = [
+    [0, 0], [C0x, C0y], [D0x, D0y], [E0x, E0y], [A0x, A0y]
+  ]
+
+  // Mirrored pentagon: reflect across x-axis, reverse vertex order
+  const mirrorPent: Point[] = [
+    [0, 0], [A0x, -A0y], [E0x, -E0y], [D0x, -D0y], [C0x, -C0y]
+  ]
+
+  // Lattice of rosette centers: u = C - rot(A, 120°), v = rot(u, 60°)
+  const cos120 = Math.cos(2 * Math.PI / 3), sin120 = Math.sin(2 * Math.PI / 3)
+  const ux = C0x - (A0x * cos120 - A0y * sin120)
+  const uy = C0y - (A0x * sin120 + A0y * cos120)
+  const c60 = Math.cos(Math.PI / 3), s60 = Math.sin(Math.PI / 3)
+  const vx = ux * c60 - uy * s60, vy = ux * s60 + uy * c60
+
+  // Compute tight (i,j) bounds
   const bleed = 2
+  const latticeLen = Math.sqrt(ux * ux + uy * uy)
+  const det = ux * vy - vx * uy
+  const pad = bleed * latticeLen
+  const canvasCorners: Point[] = [
+    [-pad, -pad], [width + pad, -pad],
+    [width + pad, height + pad], [-pad, height + pad]
+  ]
+  let iMin = Infinity, iMax = -Infinity, jMin = Infinity, jMax = -Infinity
+  for (const [px, py] of canvasCorners) {
+    const fi = (vy * px - vx * py) / det
+    const fj = (-uy * px + ux * py) / det
+    iMin = Math.min(iMin, fi); iMax = Math.max(iMax, fi)
+    jMin = Math.min(jMin, fj); jMax = Math.max(jMax, fj)
+  }
+  const i0 = Math.floor(iMin) - 1
+  const i1 = Math.ceil(iMax) + 1
+  const j0 = Math.floor(jMin) - 1
+  const j1 = Math.ceil(jMax) + 1
 
-  const cols = Math.ceil(width / s) + 2 * bleed
-  const rows = Math.ceil(height / s) + 2 * bleed
+  const rawPolys: Point[][] = []
 
-  for (let row = -bleed; row < rows; row++) {
-    for (let col = -bleed; col < cols; col++) {
-      const tx = col * s
-      const ty = row * s
+  for (let j = j0; j <= j1; j++) {
+    for (let i = i0; i <= i1; i++) {
+      const cx = i * ux + j * vx
+      const cy = i * uy + j * vy
 
-      rawPolys.push([
-        [tx, ty], [tx + s, ty], [tx + s, ty + s / 2],
-        [tx + s / 2, ty + s / 2], [tx + s / 2, ty + s]
-      ])
-      rawPolys.push([
-        [tx + s, ty + s], [tx, ty + s], [tx, ty + s / 2],
-        [tx + s / 2, ty + s / 2], [tx + s / 2, ty]
-      ])
+      for (let k = 0; k < 12; k++) {
+        const pent = k % 2 === 0 ? basePent : mirrorPent
+        const step = Math.PI / 6  // 30°
+        const angle = k * step
+        const ca = Math.cos(angle), sa = Math.sin(angle)
+
+        rawPolys.push(pent.map(([px, py]) => {
+          return [px * ca - py * sa + cx, px * sa + py * ca + cy] as Point
+        }))
+      }
     }
   }
 

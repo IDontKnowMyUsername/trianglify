@@ -129,7 +129,7 @@
       <div id="detail-label"></div>
     </div>
 
-    <script src="../dist/trianglify.bundle.debug.js"></script>
+    <script src="../dist/trianglify.bundle.debug.js?v=13"></script>
     <script>
       const THUMB_W = 400, THUMB_H = 300
       const seed = 'demo-2024'
@@ -170,7 +170,10 @@
         card.appendChild(label)
         grid.appendChild(card)
 
-        card.addEventListener('click', () => showDetail(idx))
+        card.addEventListener('click', () => {
+          showDetail(idx)
+          history.pushState({ idx }, '')
+        })
       }
 
       function showDetail(idx) {
@@ -187,7 +190,6 @@
         gallery.classList.add('hidden')
         detail.classList.add('active')
         window.scrollTo(0, 0)
-        history.pushState({ idx }, '')
       }
 
       function showGallery() {
@@ -196,7 +198,6 @@
       }
 
       backBtn.addEventListener('click', () => {
-        showGallery()
         history.back()
       })
 
@@ -226,12 +227,17 @@
         ['circle', 'Circle']
       ]
       shapes.forEach(([shape, label]) => {
-        addCard(shapesGrid, {
+        const shapeOpts = {
           seed,
           cellSize: 40,
           xColors: 'YlGnBu',
           shape
-        }, `${opt('shape', `'${shape}'`)} &mdash; ${label}`)
+        }
+        if (shape === 'pentagon-nonconvex') {
+          shapeOpts.strokeWidth = 1
+          shapeOpts.strokeColor = '#000'
+        }
+        addCard(shapesGrid, shapeOpts, `${opt('shape', `'${shape}'`)} &mdash; ${label}`)
       })
 
       // ─── Section 2: Hexagon Honeycomb (grid vs other layouts) ──

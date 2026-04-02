@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Non-Convex Rosette — Interactive Editor</title>
+    <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      background: #1a1a2e;
+      font-family: system-ui, -apple-system, sans-serif;
+      color: #e0e0e0;
+      min-height: 100vh;
+    }
+    header {
+      text-align: center;
+      padding: 20px 20px 8px;
+    }
+    header h1 { font-size: 22px; color: #fff; margin-bottom: 4px; }
+    header p { font-size: 13px; color: #999; }
+
+    .svg-wrap {
+      width: 100%;
+      max-width: 1600px;
+      margin: 12px auto;
+      background: #16213e;
+      border-radius: 10px;
+      border: 1px solid #2a2a4a;
+      overflow: hidden;
+    }
+    .svg-wrap svg {
+      display: block;
+      width: 100%;
+      height: auto;
+      cursor: default;
+    }
+    .draggable { cursor: grab; }
+    .draggable:active { cursor: grabbing; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Non-Convex Rosette — Interactive Editor</h1>
+      <p>Drag vertices on the highlighted petal. Data updates live.</p>
+    </header>
+
+    <div class="svg-wrap">
+      <svg id="rosette" viewBox="-170 -170 340 340" xmlns="http://www.w3.org/2000/svg"></svg>
+    </div>
+
+    <script>
+    (function () {
+      const svg = document.getElementById('rosette')
+      const NS = 'http://www.w3.org/2000/svg'
+
+      // ─── Vertex colors & labels ─────────────────────────────────
+      const LABELS = ['B', 'C', 'D', 'E', 'A']
+      const COLORS = { B:'#ff4444', C:'#44cc44', D:'#4488ff', E:'#44dddd', A:'#ffaa00' }
+
+      // ─── Initial vertex positions (mirrors tilings.ts) ─────────
+      const cellSize = 200
+      const halfAngle = Math.PI / 12
+      const r = cellSize / 1.68
+      const rBC = r * 1.047
+      const rAB = r * 0.647
+      const deFrac = 0.2567
+      const deLen = deFrac * r
+
+      const dirCD = 147.4 * Math.PI / 180
+      const dirDE = -168.2 * Math.PI / 180
+      const dirEA = 135.3 * Math.PI / 180
+
+      const C0x = rBC * Math.cos(halfAngle), C0y = rBC * Math.sin(halfAngle)
+      const A0x = rAB * Math.cos(3 * halfAngle), A0y = rAB * Math.sin(3 * halfAngle)
+
+      const cdD = Math.cos(dirCD), sdD = Math.sin(dirCD)
+      const cdE = Math.cos(dirDE), sdE = Math.sin(dirDE)
+      const cdA = Math.cos(dirEA), sdA = Math.sin(dirEA)
+
+      const closureX = A0x - C0x - deLen * cdE
+      const closureY = A0y - C0y - deLen * sdE
+      const detM = cdD * sdA - cdA * sdD
+      const cdLen = (closureX * sdA - closureY * cdA) / detM
+
+      const D0x = C0x + cdLen * cdD, D0y = C0y + cdLen * sdD
+      const E0x = D0x + deLen * cdE, E0y = D0y + deLen * sdE
+
+      // Mutable state: vertices in math coords [x, y] (y-up)
+      // B is always at origin
+      let verts = [[0, 0], [C0x, C0y], [D0x, D0y], [E0x, E0y], [A0x, A0y]]
+
+      // ─── Helpers ────────────────────────────────────────────────
+      function toSvg([x, y]) { return [x, -y] }
+      function fromSvg([x, y]) { return [x, -y] }
+
+      function rotate([x, y], a) {
+        const ca = Math.cos(a), sa = Math.sin(a)
+        return [x * ca - y * sa, x * sa + y * ca]
+      }
+
+      function dist(a, b) {
+        return Math.sqrt((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2)
+      }
+
+      function edgeDir(a, b) {
+        return Math.atan2(b[1] - a[1], b[0] - a[0]) * 180 / Math.PI
+      }
+
+      function interiorAngle(verts, vi) {
+        const n = verts.length
+        const [cx, cy] = verts[vi]
+        const [px, py] = verts[(vi + n - 1) % n]
+        const [nx, ny] = verts[(vi + 1) % n]
+        const a1 = Math.atan2(py - cy, px - cx)
+        const a2 = Math.atan2(ny - cy, nx - cx)
+        let a = a1 - a2
+        if (a < 0) a += 2 * Math.PI
+        return a * 180 / Math.PI
+      }
+
+      // ─── Rendering ─────────────────────────────────────────────
+      function render() {
+        svg.innerHTML = ''
+
+        // Build mirror petal: reflect across x-axis, reverse order
+        const base = verts
+        const nv = verts.length
+        const mirror = [[0, 0]]
+        for (let i = nv - 1; i >= 1; i--) {
+          mirror.push([verts[i][0], -verts[i][1]])
+        }
+
+        const step = Math.PI / 6
+
+        // Draw all 12 petals
+        for (let k = 0; k < 12; k++) {
+          const petal = k % 2 === 0 ? base : mirror
+          const angle = k * step
+          const pts = petal.map(p => toSvg(rotate(p, angle)))
+
+          const poly = document.createElementNS(NS, 'polygon')
+          poly.setAttribute('points', pts.map(v => v.join(',')).join(' '))
+          poly.setAttribute('fill', k === 0 ? 'rgba(126,200,227,0.45)' :
+            (k % 2 === 0 ? 'rgba(60,100,160,0.35)' : 'rgba(100,60,140,0.35)'))
+          poly.setAttribute('stroke', k === 0 ? '#7ec8e3' : 'rgba(200,200,255,0.3)')
+          poly.setAttribute('stroke-width', k === 0 ? 2 : 1)
+          poly.setAttribute('stroke-linejoin', 'round')
+          svg.appendChild(poly)
+        }
+
+        // Petal 0 vertices in SVG coords
+        const svgVerts = verts.map(toSvg)
+
+        // Compute angles from math coords (y-up, CCW winding)
+        const angles = verts.map((_, i) => interiorAngle(verts, i))
+        const edges = []
+        for (let i = 0; i < nv; i++) {
+          const j = (i + 1) % nv
+          edges.push({
+            from: LABELS[i],
+            to: LABELS[j],
+            len: dist(verts[i], verts[j]),
+            dir: edgeDir(verts[i], verts[j])
+          })
+        }
+
+        // ─── Legend overlay (top-left of SVG) ───────────────────
+        const legend = document.createElementNS(NS, 'g')
+        legend.setAttribute('font-family', "'SF Mono', 'Fira Code', monospace")
+        legend.setAttribute('font-size', '4.5')
+
+        // Background rect
+        const bg = document.createElementNS(NS, 'rect')
+        bg.setAttribute('x', -168)
+        bg.setAttribute('y', -168)
+        bg.setAttribute('width', 155)
+        bg.setAttribute('height', 155)
+        bg.setAttribute('rx', 3)
+        bg.setAttribute('fill', 'rgba(15,22,41,0.92)')
+        bg.setAttribute('stroke', 'rgba(42,42,74,0.6)')
+        bg.setAttribute('stroke-width', 0.5)
+        legend.appendChild(bg)
+
+        let ly = -160
+        const lx = -164
+
+        function addLine(text, color) {
+          const t = document.createElementNS(NS, 'text')
+          t.setAttribute('x', lx)
+          t.setAttribute('y', ly)
+          t.setAttribute('fill', color || '#ccc')
+          t.textContent = text
+          legend.appendChild(t)
+          ly += 6.5
+        }
+
+        function addHeader(text) {
+          addLine(text, '#7ec8e3')
+          ly += 1
+        }
+
+        addHeader('ANGLES')
+        for (let i = 0; i < nv; i++) {
+          const reflex = angles[i] > 180 ? ' (reflex)' : ''
+          addLine(`  ${LABELS[i]}: ${angles[i].toFixed(1)}°${reflex}`, COLORS[LABELS[i]])
+        }
+        addLine(`  sum: ${angles.reduce((s, a) => s + a, 0).toFixed(1)}°`, '#999')
+        ly += 2
+
+        addHeader('EDGES')
+        for (const e of edges) {
+          addLine(`  ${e.from}→${e.to}: len=${e.len.toFixed(2)}  dir=${e.dir.toFixed(1)}°`, '#ddd')
+        }
+        ly += 2
+
+        addHeader('FUNCTION PARAMS')
+        addLine(`  r = ${r.toFixed(2)}  (cellSize/${(cellSize/r).toFixed(2)})`, '#f0a500')
+        addLine(`  B→C arm = ${dist(verts[0], verts[1]).toFixed(2)}`, '#f0a500')
+        addLine(`  A→B arm = ${dist(verts[4], verts[0]).toFixed(2)}`, '#f0a500')
+
+        svg.appendChild(legend)
+
+        // ─── Vertex dots & labels on petal 0 ────────────────────
+        for (let i = 0; i < nv; i++) {
+          const [sx, sy] = svgVerts[i]
+          const label = LABELS[i]
+          const color = COLORS[label]
+
+          // Draggable circle
+          const circle = document.createElementNS(NS, 'circle')
+          circle.setAttribute('cx', sx)
+          circle.setAttribute('cy', sy)
+          circle.setAttribute('r', 4)
+          circle.setAttribute('fill', color)
+          circle.setAttribute('stroke', '#fff')
+          circle.setAttribute('stroke-width', 1)
+          circle.setAttribute('data-idx', i)
+          if (i > 0) circle.classList.add('draggable') // B stays fixed
+          svg.appendChild(circle)
+
+          // Label
+          const centX = svgVerts.reduce((s, v) => s + v[0], 0) / nv
+          const centY = svgVerts.reduce((s, v) => s + v[1], 0) / nv
+          let dx = sx - centX, dy = sy - centY
+          const d = Math.sqrt(dx * dx + dy * dy) || 1
+          dx /= d; dy /= d
+
+          const text = document.createElementNS(NS, 'text')
+          text.setAttribute('x', sx + dx * 14)
+          text.setAttribute('y', sy + dy * 14)
+          text.setAttribute('text-anchor', 'middle')
+          text.setAttribute('dominant-baseline', 'central')
+          text.setAttribute('fill', color)
+          text.setAttribute('font-size', '4')
+          text.setAttribute('font-weight', '700')
+          text.setAttribute('font-family', "'SF Mono', 'Fira Code', monospace")
+          text.textContent = `${label} ${angles[i].toFixed(0)}°`
+          svg.appendChild(text)
+        }
+
+        // Center dot
+        const cDot = document.createElementNS(NS, 'circle')
+        cDot.setAttribute('cx', 0)
+        cDot.setAttribute('cy', 0)
+        cDot.setAttribute('r', 2)
+        cDot.setAttribute('fill', '#ff4444')
+        svg.appendChild(cDot)
+      }
+
+      // ─── Drag handling ─────────────────────────────────────────
+      let dragIdx = -1
+
+      function svgPoint(evt) {
+        const pt = svg.createSVGPoint()
+        pt.x = evt.clientX
+        pt.y = evt.clientY
+        const ctm = svg.getScreenCTM().inverse()
+        const svgP = pt.matrixTransform(ctm)
+        return fromSvg([svgP.x, svgP.y])
+      }
+
+      svg.addEventListener('pointerdown', (e) => {
+        const el = e.target
+        if (el.tagName === 'circle' && el.dataset.idx) {
+          const idx = parseInt(el.dataset.idx)
+          if (idx === 0) return // B stays fixed
+          dragIdx = idx
+          cacheSnapTargets(idx)
+          el.setPointerCapture(e.pointerId)
+          e.preventDefault()
+        }
+      })
+
+      // Snap threshold in math-coord units
+      const SNAP_DIST = 6
+      let snapTargets = []
+
+      function cacheSnapTargets(dragI) {
+        // Cache all vertices of petals 1-11 at drag start so they
+        // don't shift during the drag (eliminates jitter).
+        // Exclude vertex 0 (B at origin) since it never moves.
+        const step = Math.PI / 6
+        snapTargets = []
+        const nv = verts.length
+        for (let k = 1; k < 12; k++) {
+          const isMirror = k % 2 !== 0
+          const angle = k * step
+          const ca = Math.cos(angle), sa = Math.sin(angle)
+          const petal = isMirror
+            ? [[0,0], ...verts.slice(1).reverse().map(([x,y]) => [x,-y])]
+            : verts.map(v => [...v])
+          for (let vi = 1; vi < nv; vi++) {
+            const [px, py] = petal[vi]
+            snapTargets.push([px * ca - py * sa, px * sa + py * ca])
+          }
+        }
+      }
+
+      svg.addEventListener('pointermove', (e) => {
+        if (dragIdx < 0) return
+        let [mx, my] = svgPoint(e)
+
+        // Snap to cached adjacent petal vertices
+        let bestD = SNAP_DIST
+        for (const [tx, ty] of snapTargets) {
+          const d = Math.sqrt((mx - tx) ** 2 + (my - ty) ** 2)
+          if (d < bestD) {
+            bestD = d
+            mx = tx
+            my = ty
+          }
+        }
+
+        verts[dragIdx] = [mx, my]
+        render()
+        e.preventDefault()
+      })
+
+      svg.addEventListener('pointerup', () => { dragIdx = -1 })
+      svg.addEventListener('pointercancel', () => { dragIdx = -1 })
+
+      // Initial render
+      render()
+    })()
+    </script>
+  </body>
+</html>
