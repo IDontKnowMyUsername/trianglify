@@ -211,12 +211,14 @@ function generateConvexTiling(width: number, height: number, cellSize: number): 
 // ─── Irregular Non-Convex Pentagon Tiling ────────────────────────
 //
 // Non-convex pentagon tiling forming 12-fold star rosettes.
-// Pentagon tip angle B ≈ 30°; 12 petals × 30° = 360°.
+// 12 petals × 30° = 360° at each rosette center.
 //
-// Angles: B≈30°, C≈48°, D≈136°, E≈237°(reflex), A≈90° (sum 540°).
-// E is the reflex vertex that creates the indent interlocking
-// adjacent petals. Construction: at each rosette center (B vertex),
-// place 12 pentagons alternating normal and mirror-reflected.
+// Angles: B=30°, C=60°, D=120°, E=240°, A=90° (all ×30°, sum 540°).
+// Edge dirs: B→C=15°, C→D=E→A=135°, D→E=195°, A→B=225°.
+// E is the reflex vertex creating the indent that interlocks
+// adjacent petals. Shoulders CD and EA are parallel (both 135°)
+// but asymmetric: AE/DC ≈ 0.543. Construction: at each rosette
+// center (B vertex), place 12 pentagons alternating normal/mirror.
 
 function generateNonconvexTiling(width: number, height: number, cellSize: number): TilingResult {
   // 12 petals → 30° each. Half-angle = 15°.
@@ -226,35 +228,34 @@ function generateNonconvexTiling(width: number, height: number, cellSize: number
   const cos3H = Math.cos(3 * halfAngle)
   const sin3H = Math.sin(3 * halfAngle)
 
-  // Arm lengths and geometry
+  // Arm lengths
   const r = cellSize / 1.68
-  const rBC = r * 1.047  // B→C arm
-  const rAB = r * 0.647  // A→B arm
+  const rBC = r * 1.047  // B→C arm (long)
+  const rAB = r * 0.668  // A→B arm (short, BC/AB ≈ 1.568)
 
-  // Indent depth: D→E edge length as fraction of r
-  const deFrac = 0.2567
-  const deLen = deFrac * r
+  // Shoulder ratio: AE/DC from reference image
+  const shoulderRatio = 0.543
 
-  // Edge directions (tuned so adjacent rosettes mesh)
-  const dirCD = 147.4 * Math.PI / 180
-  const dirDE = -168.2 * Math.PI / 180
-  const dirEA = 135.3 * Math.PI / 180
+  // Edge directions (exact: all angles are multiples of 30°)
+  const dirShoulder = 3 * Math.PI / 4   // 135° (C→D and E→A)
+  const dirIndent = 13 * Math.PI / 12   // 195° (D→E)
 
   const C0x = rBC * cosH, C0y = rBC * sinH    // C at 15°
   const A0x = rAB * cos3H, A0y = rAB * sin3H  // A at 45°
 
-  const cdD = Math.cos(dirCD), sdD = Math.sin(dirCD)
-  const cdE = Math.cos(dirDE), sdE = Math.sin(dirDE)
-  const cdA = Math.cos(dirEA), sdA = Math.sin(dirEA)
+  const cosSh = Math.cos(dirShoulder), sinSh = Math.sin(dirShoulder)
+  const cosIn = Math.cos(dirIndent), sinIn = Math.sin(dirIndent)
 
-  // Solve C→D and E→A lengths from polygon closure
-  const closureX = A0x - C0x - deLen * cdE
-  const closureY = A0y - C0y - deLen * sdE
-  const detM = cdD * sdA - cdA * sdD
-  const cdLen = (closureX * sdA - closureY * cdA) / detM
+  // Solve shoulder sum (cdLen + eaLen) and indent length from closure
+  const dx = A0x - C0x, dy = A0y - C0y
+  const detM = cosSh * sinIn - cosIn * sinSh
+  const shoulderSum = (dx * sinIn - dy * cosIn) / detM
+  const deLen = (cosSh * dy - sinSh * dx) / detM
 
-  const D0x = C0x + cdLen * cdD, D0y = C0y + cdLen * sdD
-  const E0x = D0x + deLen * cdE, E0y = D0y + deLen * sdE
+  const cdLen = shoulderSum / (1 + shoulderRatio)
+
+  const D0x = C0x + cdLen * cosSh, D0y = C0y + cdLen * sinSh
+  const E0x = D0x + deLen * cosIn, E0y = D0y + deLen * sinIn
 
   // Normal pentagon (B at origin)
   const basePent: Point[] = [
