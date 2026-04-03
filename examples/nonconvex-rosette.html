@@ -58,32 +58,35 @@
       const COLORS = { B:'#ff4444', C:'#44cc44', D:'#4488ff', E:'#44dddd', A:'#ffaa00' }
 
       // ─── Initial vertex positions (mirrors tilings.ts) ─────────
+      // Angles: B=30°, C=60°, D=120°, E=240°, A=90° (all ×30°, sum 540°)
+      // Edge dirs: B→C=15°, C→D=E→A=135°, D→E=195°, A→B=225°
       const cellSize = 200
       const halfAngle = Math.PI / 12
       const r = cellSize / 1.68
       const rBC = r * 1.047
-      const rAB = r * 0.647
-      const deFrac = 0.2567
-      const deLen = deFrac * r
+      const rAB = r * 0.668  // BC/AB ≈ 1.568 from reference
+      const shoulderRatio = 0.543  // AE/DC = eaLen/cdLen from reference
 
-      const dirCD = 147.4 * Math.PI / 180
-      const dirDE = -168.2 * Math.PI / 180
-      const dirEA = 135.3 * Math.PI / 180
+      const dirShoulder = 3 * Math.PI / 4   // 135° (C→D and E→A)
+      const dirIndent = 13 * Math.PI / 12   // 195° (D→E)
 
       const C0x = rBC * Math.cos(halfAngle), C0y = rBC * Math.sin(halfAngle)
       const A0x = rAB * Math.cos(3 * halfAngle), A0y = rAB * Math.sin(3 * halfAngle)
 
-      const cdD = Math.cos(dirCD), sdD = Math.sin(dirCD)
-      const cdE = Math.cos(dirDE), sdE = Math.sin(dirDE)
-      const cdA = Math.cos(dirEA), sdA = Math.sin(dirEA)
+      const cosSh = Math.cos(dirShoulder), sinSh = Math.sin(dirShoulder)
+      const cosIn = Math.cos(dirIndent), sinIn = Math.sin(dirIndent)
 
-      const closureX = A0x - C0x - deLen * cdE
-      const closureY = A0y - C0y - deLen * sdE
-      const detM = cdD * sdA - cdA * sdD
-      const cdLen = (closureX * sdA - closureY * cdA) / detM
+      // Solve shoulder sum (cdLen + eaLen) and indent from closure
+      const dx = A0x - C0x, dy = A0y - C0y
+      const detM = cosSh * sinIn - cosIn * sinSh
+      const shoulderSum = (dx * sinIn - dy * cosIn) / detM
+      const deLen = (cosSh * dy - sinSh * dx) / detM
 
-      const D0x = C0x + cdLen * cdD, D0y = C0y + cdLen * sdD
-      const E0x = D0x + deLen * cdE, E0y = D0y + deLen * sdE
+      const cdLen = shoulderSum / (1 + shoulderRatio)
+      const eaLen = shoulderRatio * cdLen
+
+      const D0x = C0x + cdLen * cosSh, D0y = C0y + cdLen * sinSh
+      const E0x = D0x + deLen * cosIn, E0y = D0y + deLen * sinIn
 
       // Mutable state: vertices in math coords [x, y] (y-up)
       // B is always at origin
@@ -214,9 +217,9 @@
         ly += 2
 
         addHeader('FUNCTION PARAMS')
-        addLine(`  r = ${r.toFixed(2)}  (cellSize/${(cellSize/r).toFixed(2)})`, '#f0a500')
-        addLine(`  B→C arm = ${dist(verts[0], verts[1]).toFixed(2)}`, '#f0a500')
-        addLine(`  A→B arm = ${dist(verts[4], verts[0]).toFixed(2)}`, '#f0a500')
+        addLine(`  B→C arm = ${dist(verts[0], verts[1]).toFixed(2)}  A→B = ${dist(verts[4], verts[0]).toFixed(2)}`, '#f0a500')
+        addLine(`  CD = ${dist(verts[1], verts[2]).toFixed(2)}  EA = ${dist(verts[3], verts[4]).toFixed(2)}  DE = ${deLen.toFixed(2)}`, '#f0a500')
+        addLine(`  AE/DC = ${(dist(verts[4], verts[3]) / dist(verts[2], verts[1])).toFixed(3)}  BC/AB = ${(dist(verts[0], verts[1]) / dist(verts[4], verts[0])).toFixed(3)}`, '#f0a500')
 
         svg.appendChild(legend)
 
