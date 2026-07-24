@@ -1,4 +1,10 @@
 v5
+- copy caller-supplied points to prevent mutating input arrays
+- add empirical lattice corrections to nonconvex rosette tiling
+- fix CI typecheck/lint errors, add pentagonal tiling tests, document v5 options
+- apply reference image geometry to generateNonconvexTiling
+- fix nonconvex rosette angles and edge ratios from reference image
+- replace pentagonal tilings with rosette constructions
 - add shape/tiling system and fix Cairo pentagonal tiling lattice vectors
 - increase unit test coverage from 60% to 96% on CJS bundle
 - add pointGeneration option with Poisson-disc and best-candidate sampling algorithms (issue #150)

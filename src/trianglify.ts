@@ -126,7 +126,8 @@ function trianglify (_opts: Partial<TrianglifyOptions> = {}): Pattern {
 
   // Our next step is to generate a pseudo-random grid of {x, y} points,
   // (or to simply utilize the points that were passed to us)
-  let points: Point[] = opts.points || getPoints(opts, rand)
+  // copy user-supplied points so shape generation never mutates the caller's array
+  let points: Point[] = opts.points ? opts.points.slice() : getPoints(opts, rand)
 
   // For hexagons with grid layout, offset alternating rows for honeycomb tiling
   if (opts.shape === 'hexagon' && opts.pointGeneration === 'grid' && !opts.points) {

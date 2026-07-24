@@ -54,7 +54,9 @@ describe('Custom points', () => {
       seed: 'customPoints'
     })
     expect(pattern).toBeInstanceOf(Pattern)
-    expect(pattern.points).toBe(points)
+    // value equality, not identity: the pattern copies user points so it
+    // never aliases (or mutates) the caller's array
+    expect(pattern.points).toEqual(points)
   })
 })
 
@@ -1310,5 +1312,24 @@ describe('TrianglifyWorker (CJS coverage)', () => {
     const mock = mockWorkerInstances[0]!
 
     expect(() => mock.simulateMessage({ id: 999, data: {} })).not.toThrow()
+  })
+})
+
+describe('caller-supplied points', () => {
+  test('input array is not mutated by polygon shape generation', () => {
+    const inputPoints: Array<[number, number]> = []
+    for (let x = 0; x <= 100; x += 25) {
+      for (let y = 0; y <= 100; y += 25) {
+        inputPoints.push([x, y])
+      }
+    }
+    const snapshot = JSON.stringify(inputPoints)
+
+    trianglify({ width: 100, height: 100, points: inputPoints, shape: 'pentagon', seed: 'no-mutate' })
+    trianglify({ width: 100, height: 100, points: inputPoints, shape: 'circle', seed: 'no-mutate' })
+    trianglify({ width: 100, height: 100, points: inputPoints, shape: 'triangle', seed: 'no-mutate' })
+
+    expect(inputPoints).toHaveLength(25)
+    expect(JSON.stringify(inputPoints)).toBe(snapshot)
   })
 })
