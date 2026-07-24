@@ -1,4 +1,5 @@
 v5
+- add exact nonconvex rosette tiling analysis doc
 - solve nonconvex rosette tiling exactly and remove empirical lattice corrections
 - copy caller-supplied points to prevent mutating input arrays
 - add empirical lattice corrections to nonconvex rosette tiling
