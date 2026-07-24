@@ -1,7 +1,7 @@
 // Basic command-line example
 // Usage: node save-as-svg.js
 const fs = require('fs')
-const trianglify = require('../dist/trianglify.js')
+const trianglify = require('../dist/trianglify.cjs')
 
 // Generate a pattern and render to an SVG node tree
 const svg = trianglify({

@@ -1194,16 +1194,17 @@ describe('TrianglifyWorker (CJS coverage)', () => {
   const TrianglifyWorker = trianglify.TrianglifyWorker
 
   test('constructor creates a Worker and sets up handlers', () => {
-    const tw = new TrianglifyWorker('test.worker.js')
+    new TrianglifyWorker('test.worker.js')
     expect(mockWorkerInstances).toHaveLength(1)
-    expect(mockWorkerInstances[0].url).toBe('test.worker.js')
-    expect(mockWorkerInstances[0].onmessage).toBeInstanceOf(Function)
-    expect(mockWorkerInstances[0].onerror).toBeInstanceOf(Function)
+    const mock = mockWorkerInstances[0]!
+    expect(mock.url).toBe('test.worker.js')
+    expect(mock.onmessage).toBeInstanceOf(Function)
+    expect(mock.onerror).toBeInstanceOf(Function)
   })
 
   test('generate sends message and resolves on success', async () => {
     const tw = new TrianglifyWorker('test.worker.js')
-    const mock = mockWorkerInstances[0]
+    const mock = mockWorkerInstances[0]!
 
     const realPattern = trianglify({ seed: 'worker-gen', width: 100, height: 100 })
     const data = realPattern.toData()
@@ -1220,7 +1221,7 @@ describe('TrianglifyWorker (CJS coverage)', () => {
 
   test('generate rejects on worker error response', async () => {
     const tw = new TrianglifyWorker('test.worker.js')
-    const mock = mockWorkerInstances[0]
+    const mock = mockWorkerInstances[0]!
 
     const promise = tw.generate({})
     mock.simulateMessage({ id: 0, error: 'Something went wrong' })
@@ -1230,7 +1231,7 @@ describe('TrianglifyWorker (CJS coverage)', () => {
 
   test('generate rejects when worker returns neither data nor error', async () => {
     const tw = new TrianglifyWorker('test.worker.js')
-    const mock = mockWorkerInstances[0]
+    const mock = mockWorkerInstances[0]!
 
     const promise = tw.generate({})
     mock.simulateMessage({ id: 0 })
@@ -1240,7 +1241,7 @@ describe('TrianglifyWorker (CJS coverage)', () => {
 
   test('onerror rejects all pending promises', async () => {
     const tw = new TrianglifyWorker('test.worker.js')
-    const mock = mockWorkerInstances[0]
+    const mock = mockWorkerInstances[0]!
 
     const p1 = tw.generate({})
     const p2 = tw.generate({})
@@ -1253,7 +1254,7 @@ describe('TrianglifyWorker (CJS coverage)', () => {
 
   test('terminate rejects pending promises', async () => {
     const tw = new TrianglifyWorker('test.worker.js')
-    const mock = mockWorkerInstances[0]
+    const mock = mockWorkerInstances[0]!
 
     const p1 = tw.generate({})
     tw.terminate()
@@ -1284,7 +1285,7 @@ describe('TrianglifyWorker (CJS coverage)', () => {
 
   test('serializes built-in color function descriptors', () => {
     const tw = new TrianglifyWorker('test.worker.js')
-    const mock = mockWorkerInstances[0]
+    const mock = mockWorkerInstances[0]!
 
     const fn = trianglify.colorFunctions.sparkle(0.3)
     tw.generate({ colorFunction: fn })
@@ -1295,7 +1296,7 @@ describe('TrianglifyWorker (CJS coverage)', () => {
 
   test('strips custom color functions without descriptor', () => {
     const tw = new TrianglifyWorker('test.worker.js')
-    const mock = mockWorkerInstances[0]
+    const mock = mockWorkerInstances[0]!
 
     const customFn = () => ({})
     tw.generate({ colorFunction: customFn as any })
@@ -1305,8 +1306,8 @@ describe('TrianglifyWorker (CJS coverage)', () => {
   })
 
   test('onmessage ignores unknown ids', () => {
-    const tw = new TrianglifyWorker('test.worker.js')
-    const mock = mockWorkerInstances[0]
+    new TrianglifyWorker('test.worker.js')
+    const mock = mockWorkerInstances[0]!
 
     expect(() => mock.simulateMessage({ id: 999, data: {} })).not.toThrow()
   })

@@ -118,7 +118,8 @@ pattern.polys[0].centroid
 // defining the shape corners
 pattern.polys[0].vertexIndices
 
-// Chroma.js color object defining the color of the polygon
+// color object defining the color of the polygon. Call .css() to get
+// the color as a CSS-formatted string, e.g. 'rgb(129,204,177)'
 pattern.polys[0].color
 ```
 
@@ -198,7 +199,11 @@ const defaultOptions = {
   colorFunction: trianglify.colorFunctions.interpolateLinear(0.5),
   strokeWidth: 0,
   strokeColor: null,
-  points: null
+  points: null,
+  pointGeneration: 'grid',
+  shape: 'triangle',
+  spiralDirection: 'ccw',
+  spiralRatio: 'golden'
 }
 ```
 
@@ -244,7 +249,9 @@ String, defaults to `'lab'`. Set the color space used for generating gradients. 
 
 **`colorFunction`**
 
-Specify a custom function for coloring triangles, defaults to `null`. Accepts a function to override the standard gradient coloring, which is passed a variety of data about the pattern and each polygon and must return a Chroma.js color object.
+Specify a custom function for coloring polygons, defaults to `trianglify.colorFunctions.interpolateLinear(0.5)`. Accepts a function to override the standard gradient coloring, which is passed a variety of data about the pattern and each polygon and must return a Chroma.js color object.
+
+The built-in color functions are `interpolateLinear(bias)`, `sparkle(intensity)`, `shadows(intensity)`, `radial()`, and `angular()`, all available on `trianglify.colorFunctions`.
 
 See [`examples/color-function-example.html`](./examples/color-function-example.html) and [`src/utils/colorFunctions.ts`](./src/utils/colorFunctions.ts) for more information about the built-in color functions, and how to write custom color functions.
 
@@ -263,3 +270,36 @@ String or null, defaults to `null`. Specify a CSS-formatted color to use for pol
 **`points`**
 
 Array of points ([x, y]) to triangulate, defaults to null. When not specified an array randomised points is generated filling the space. Points must be within the coordinate space defined by `width` and `height`. See [`examples/custom-points-example.html`](./examples/custom-points-example.html) for a demonstration of how this option can be used to generate circular trianglify patterns.
+
+**`pointGeneration`**
+
+String, defaults to `'grid'`. Selects the algorithm used to generate the pseudo-random point layout that the pattern is built on. Supported values:
+
+- `'grid'` — a jittered square grid (the classic Trianglify look)
+- `'poisson'` — Poisson-disc sampling via Bridson's algorithm, for an even, organic distribution
+- `'bestCandidate'` — Mitchell's best-candidate sampling, similar to Poisson-disc with a softer look
+- `'spiral'` — points along a Fermat (sunflower) spiral, see `spiralDirection` and `spiralRatio`
+- `'sphere'` — an orthographic projection of points distributed on a sphere
+
+This option is ignored when `points` is provided or when `shape` is one of the pentagonal tilings. See [`examples/shapes-and-layouts.html`](./examples/shapes-and-layouts.html) for a visual comparison.
+
+**`shape`**
+
+String, defaults to `'triangle'`. Selects the geometry the pattern is built from:
+
+- `'triangle'` — Delaunay triangulation of the generated points (the classic behavior)
+- `'pentagon'`, `'hexagon'`, `'heptagon'`, `'octagon'` — one regular polygon per generated point, with the gaps between polygons filled by triangles. With the default `'grid'` point generation, hexagons are arranged in an offset honeycomb layout.
+- `'circle'` — one circle per generated point, with gap-filling triangles
+- `'pentagon-cairo'` — the equilateral Cairo pentagonal tiling
+- `'pentagon-convex'` — a type 5 convex pentagon tiling forming 6-fold rosettes
+- `'pentagon-nonconvex'` — a non-convex pentagon tiling forming 12-fold star rosettes
+
+The three `pentagon-*` values generate complete plane tilings directly from `cellSize`, so they ignore the `points`, `pointGeneration`, and `variance` options. See [`examples/shapes-and-layouts.html`](./examples/shapes-and-layouts.html) and [`examples/nonconvex-rosette.html`](./examples/nonconvex-rosette.html).
+
+**`spiralDirection`**
+
+String, `'cw'` or `'ccw'`, defaults to `'ccw'`. The winding direction of the spiral when `pointGeneration` is `'spiral'`. Has no effect with other point generation modes.
+
+**`spiralRatio`**
+
+The string `'golden'` or a positive number, defaults to `'golden'`. Controls the divergence angle between consecutive points when `pointGeneration` is `'spiral'`: for a ratio `r` the angle is `2π/r²`, and `'golden'` uses the golden ratio, producing the golden angle (~137.5°) seen in sunflower seed heads. Values near small rational numbers produce visible spiral arms instead of an even fill. Has no effect with other point generation modes.
