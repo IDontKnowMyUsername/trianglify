@@ -268,9 +268,19 @@ function generateNonconvexTiling(width: number, height: number, cellSize: number
   ]
 
   // Lattice of rosette centers: u = C - rot(A, 120°), v = rot(u, 60°)
+  // Empirical corrections — the A=90° petal geometry doesn't tile exactly;
+  // scale and rotate the lattice vectors to minimize gaps/overlaps.
+  const latticeScale = 0.98
+  const latticeRotDeg = 4.15  // slope tilt (CCW degrees)
+  const latticeHShift = -15   // horizontal shift
+  const latticeVShift = -15   // vertical shift (positive = up in math coords)
   const cos120 = Math.cos(2 * Math.PI / 3), sin120 = Math.sin(2 * Math.PI / 3)
-  const ux = C0x - (A0x * cos120 - A0y * sin120)
-  const uy = C0y - (A0x * sin120 + A0y * cos120)
+  const ux0 = C0x - (A0x * cos120 - A0y * sin120)
+  const uy0 = C0y - (A0x * sin120 + A0y * cos120)
+  const cosR = Math.cos(latticeRotDeg * Math.PI / 180)
+  const sinR = Math.sin(latticeRotDeg * Math.PI / 180)
+  const ux = (ux0 * cosR - uy0 * sinR) * latticeScale + latticeHShift
+  const uy = (ux0 * sinR + uy0 * cosR) * latticeScale + latticeVShift
   const c60 = Math.cos(Math.PI / 3), s60 = Math.sin(Math.PI / 3)
   const vx = ux * c60 - uy * s60, vy = ux * s60 + uy * c60
 
