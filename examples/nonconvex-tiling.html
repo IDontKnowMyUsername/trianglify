@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Non-Convex Rosette — Tiled Pattern</title>
+    <script src="../dist/trianglify.bundle.debug.js"></script>
+    <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { background: #1a1a2e; font-family: system-ui, -apple-system, sans-serif; color: #e0e0e0; }
+    header { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; padding: 12px 16px; }
+    header h1 { font-size: 17px; color: #fff; margin-right: 8px; }
+    label { font-size: 13px; color: #bbb; display: flex; align-items: center; gap: 6px; }
+    input[type=range] { width: 140px; }
+    input[type=text] { width: 110px; background: #16213e; color: #e0e0e0; border: 1px solid #2a2a4a; border-radius: 4px; padding: 3px 6px; }
+    button { background: #2a2a4a; color: #e0e0e0; border: none; border-radius: 4px; padding: 4px 10px; cursor: pointer; }
+    button:hover { background: #3a3a5e; }
+    #pattern { display: block; }
+    /* gap highlight: pattern gaps let the container background show through */
+    #wrap { background: #1a1a2e; }
+    #wrap.gaps { background: #ff00ff; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Non-Convex Rosette — Tiled</h1>
+      <label>cellSize <input id="cellSize" type="range" min="30" max="200" value="75"> <span id="cellSizeVal">75</span></label>
+      <label>seed <input id="seed" type="text" value="rosette"></label>
+      <button id="randomize">randomize colors</button>
+      <label><input id="stroke" type="checkbox"> outline pentagons</label>
+      <label><input id="gaps" type="checkbox"> highlight gaps (magenta)</label>
+    </header>
+    <div id="wrap"><div id="pattern"></div></div>
+
+    <script>
+    (function () {
+      const $ = id => document.getElementById(id)
+
+      function render() {
+        const stroke = $('stroke').checked
+        const pattern = trianglify({
+          width: window.innerWidth,
+          height: window.innerHeight - 60,
+          shape: 'pentagon-nonconvex',
+          cellSize: parseInt($('cellSize').value, 10),
+          seed: $('seed').value || null,
+          strokeWidth: stroke ? 1 : 0,
+          strokeColor: stroke ? '#000' : null
+        })
+        $('cellSizeVal').textContent = $('cellSize').value
+        $('pattern').replaceChildren(pattern.toSVG())
+      }
+
+      $('cellSize').addEventListener('input', render)
+      $('seed').addEventListener('input', render)
+      $('stroke').addEventListener('change', render)
+      $('gaps').addEventListener('change', () => $('wrap').classList.toggle('gaps', $('gaps').checked))
+      $('randomize').addEventListener('click', () => {
+        $('seed').value = Math.random().toString(36).slice(2, 8)
+        render()
+      })
+      window.addEventListener('resize', render)
+
+      render()
+    })()
+    </script>
+  </body>
+</html>

@@ -217,8 +217,13 @@ function generateConvexTiling(width: number, height: number, cellSize: number): 
 // Edge dirs: B→C=15°, C→D=E→A=135°, D→E=195°, A→B=225°.
 // E is the reflex vertex creating the indent that interlocks
 // adjacent petals. Shoulders CD and EA are parallel (both 135°)
-// but asymmetric: AE/DC ≈ 0.543. Construction: at each rosette
-// center (B vertex), place 12 pentagons alternating normal/mirror.
+// but asymmetric: EA/CD = 1/2 exactly.
+//
+// This tiles the plane exactly: with AB/BC = 3√3/8 the edge lengths
+// come out to CD = DE = BC/4, EA = BC/8, and each C-tip (120° of
+// material) nests in a neighbor's reflex E (240°). Construction: at
+// each rosette center (B vertex), place 12 pentagons alternating
+// normal/mirror on the lattice u = C − rot(E, 120°), v = rot(u, 60°).
 
 function generateNonconvexTiling(width: number, height: number, cellSize: number): TilingResult {
   // 12 petals → 30° each. Half-angle = 15°.
@@ -228,13 +233,13 @@ function generateNonconvexTiling(width: number, height: number, cellSize: number
   const cos3H = Math.cos(3 * halfAngle)
   const sin3H = Math.sin(3 * halfAngle)
 
-  // Arm lengths
-  const r = cellSize / 1.68
-  const rBC = r * 1.047  // B→C arm (long)
-  const rAB = r * 0.668  // A→B arm (short, BC/AB ≈ 1.568)
+  // Arm lengths — exact tiling ratios; rBC scaled so the rosette
+  // lattice pitch |u| = √39/4 · rBC equals cellSize
+  const rBC = 4 * cellSize / Math.sqrt(39)   // B→C arm (long)
+  const rAB = rBC * 3 * Math.sqrt(3) / 8     // A→B arm (short), BC/AB = 8√3/9
 
-  // Shoulder ratio: AE/DC from reference image
-  const shoulderRatio = 0.543
+  // Shoulder ratio EA/CD — exactly 1/2 for the gap-free tiling
+  const shoulderRatio = 0.5
 
   // Edge directions (exact: all angles are multiples of 30°)
   const dirShoulder = 3 * Math.PI / 4   // 135° (C→D and E→A)
@@ -267,20 +272,13 @@ function generateNonconvexTiling(width: number, height: number, cellSize: number
     [0, 0], [A0x, -A0y], [E0x, -E0y], [D0x, -D0y], [C0x, -C0y]
   ]
 
-  // Lattice of rosette centers: u = C - rot(A, 120°), v = rot(u, 60°)
-  // Empirical corrections — the A=90° petal geometry doesn't tile exactly;
-  // scale and rotate the lattice vectors to minimize gaps/overlaps.
-  const latticeScale = 0.98
-  const latticeRotDeg = 4.15  // slope tilt (CCW degrees)
-  const latticeHShift = -15   // horizontal shift
-  const latticeVShift = -15   // vertical shift (positive = up in math coords)
+  // Lattice of rosette centers: u = C − rot(E, 120°), v = rot(u, 60°).
+  // Anchoring on E (not A) places each C-tip inside a neighbor's
+  // reflex E — the vertex figure 120° + 240° = 360° that closes the
+  // tiling exactly.
   const cos120 = Math.cos(2 * Math.PI / 3), sin120 = Math.sin(2 * Math.PI / 3)
-  const ux0 = C0x - (A0x * cos120 - A0y * sin120)
-  const uy0 = C0y - (A0x * sin120 + A0y * cos120)
-  const cosR = Math.cos(latticeRotDeg * Math.PI / 180)
-  const sinR = Math.sin(latticeRotDeg * Math.PI / 180)
-  const ux = (ux0 * cosR - uy0 * sinR) * latticeScale + latticeHShift
-  const uy = (ux0 * sinR + uy0 * cosR) * latticeScale + latticeVShift
+  const ux = C0x - (E0x * cos120 - E0y * sin120)
+  const uy = C0y - (E0x * sin120 + E0y * cos120)
   const c60 = Math.cos(Math.PI / 3), s60 = Math.sin(Math.PI / 3)
   const vx = ux * c60 - uy * s60, vy = ux * s60 + uy * c60
 
