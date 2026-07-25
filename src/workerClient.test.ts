@@ -199,4 +199,11 @@ describe('terminate()', () => {
     await expect(p1).rejects.toThrow('Worker terminated')
     await expect(p2).rejects.toThrow('Worker terminated')
   })
+
+  test('generate() after terminate() rejects instead of hanging', async () => {
+    worker.terminate()
+
+    await expect(worker.generate({})).rejects.toThrow('Worker terminated')
+    expect(mock.posted).toHaveLength(0)
+  })
 })

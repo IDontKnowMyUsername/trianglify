@@ -141,7 +141,7 @@ function trianglify (_opts: Partial<TrianglifyOptions> = {}): Pattern {
   // use a different (salted) randomizer for the color function so that
   // swapping out color functions doesn't change the pattern geometry itself
   const salt = 42
-  const cRand = mulberry32(opts.seed ? String(opts.seed) + salt : null)
+  const cRand = mulberry32(opts.seed != null ? String(opts.seed) + salt : null)
   const polys: Polygon[] = []
   const { width, height, shape } = opts
   const norm = (num: number) => Math.max(0, Math.min(1, num))

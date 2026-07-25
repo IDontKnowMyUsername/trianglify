@@ -1333,3 +1333,25 @@ describe('caller-supplied points', () => {
     expect(JSON.stringify(inputPoints)).toBe(snapshot)
   })
 })
+
+describe('falsy seeds', () => {
+  const svg = (seed: string | number) =>
+    trianglify({ seed, width: 100, height: 100 }).toSVGTree().toString()
+
+  test('seed: 0 is deterministic', () => {
+    expect(svg(0)).toEqual(svg(0))
+  })
+
+  test("seed: '' is deterministic", () => {
+    expect(svg('')).toEqual(svg(''))
+  })
+
+  test('numeric seeds are deterministic and distinct', () => {
+    expect(svg(42)).toEqual(svg(42))
+    expect(svg(0)).not.toEqual(svg(1))
+  })
+
+  test('numeric seed matches its string form', () => {
+    expect(svg(42)).toEqual(svg('42'))
+  })
+})

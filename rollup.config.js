@@ -21,6 +21,15 @@ export default [
     ]
   },
   {
+    // ESM build for browser bundlers, served via the "browser" exports
+    // condition: no node:module banner (which breaks Vite/webpack builds),
+    // the require('canvas') branch is unreachable in browsers
+    input: 'src/trianglify.ts',
+    external: ['chroma-js'],
+    plugins: [resolve({ browser: true }), commonjs(), typescript({ tsconfig: './tsconfig.json', declaration: false }), bundleSize()],
+    output: { file: 'dist/trianglify.browser.mjs', format: 'es', sourcemap: true }
+  },
+  {
     // build minified bundle to be used standalone for browser use
     // note: // chroma.js weighs 40k minified, a smaller solution would be nice
     input: 'src/trianglify.ts',

@@ -3,8 +3,9 @@
  */
 export {}
 
-// Tests for Web Worker support: Pattern serialization/deserialization,
-// color function descriptors, and the TrianglifyWorker client.
+// Tests for Pattern serialization/deserialization and color function
+// descriptors — the data layer that Web Worker support is built on.
+// The worker bundle itself is exercised in src/worker.bundle.test.ts.
 
 const trianglify = require('../dist/trianglify.bundle.debug.js')
 const Pattern = trianglify.Pattern

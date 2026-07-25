@@ -41,12 +41,16 @@ Tests use `require()` to load CJS/UMD dist bundles, compiled via ts-jest.
 - Browser tests: `src/trianglify.browser.test.ts` (jsdom environment, uses UMD bundle)
 - Node tests: `src/trianglify.node.test.ts` (node environment, uses CJS bundle)
 - Coverage tests: `src/trianglify.coverage.test.ts`
-- Worker tests: `src/worker.test.ts`
+- Tiling tests: `src/tilings.test.ts` (exact geometry and gap-free certification)
+- Serialization tests: `src/serialization.test.ts` (Pattern toData/fromData, color function descriptors)
+- Worker bundle tests: `src/worker.bundle.test.ts` (executes dist/trianglify.worker.js against a mock scope)
+- Worker client tests: `src/workerClient.test.ts` (TrianglifyWorker with a mock Worker)
 
 ## Output Bundles
 
 - `dist/trianglify.cjs` — CJS for Node/bundlers (chroma-js external)
-- `dist/trianglify.mjs` — ESM for Node/bundlers (chroma-js external)
+- `dist/trianglify.mjs` — ESM for Node (chroma-js external, node:module banner for lazy canvas require)
+- `dist/trianglify.browser.mjs` — ESM for browser bundlers via the "browser" exports condition (chroma-js external, no node:module banner)
 - `dist/trianglify.bundle.js` — UMD minified for browsers (chroma-js bundled)
 - `dist/trianglify.bundle.debug.js` — UMD unminified for debugging
 - `dist/trianglify.worker.js` — IIFE minified for Web Workers

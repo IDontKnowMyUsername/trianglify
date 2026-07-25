@@ -5,7 +5,9 @@
 // const randFn = mulberry32('string seed')
 // const randomNumber = randFn() // [0, 1] random float
 export default function mulberry32 (seed: string | number | null): () => number {
-  const str = seed ? String(seed) : Math.random().toString(36)
+  // only null/undefined mean "unseeded" — falsy seeds like 0 and '' are
+  // valid and must produce deterministic output
+  const str = seed != null ? String(seed) : Math.random().toString(36)
   let a = xmur3(str)()
   return function () {
     a |= 0; a = a + 0x6D2B79F5 | 0

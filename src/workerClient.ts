@@ -29,11 +29,13 @@ export default class TrianglifyWorker {
   private _worker: Worker
   private _nextId: number
   private _pending: Map<number, PendingHandler>
+  private _terminated: boolean
 
   constructor (workerUrl: string) {
     this._worker = new Worker(workerUrl)
     this._nextId = 0
     this._pending = new Map()
+    this._terminated = false
 
     this._worker.onmessage = (e: MessageEvent<{ id: number; data?: PatternData; error?: string }>) => {
       const { id, data, error } = e.data
@@ -55,6 +57,10 @@ export default class TrianglifyWorker {
 
   generate (opts: Partial<TrianglifyOptions> = {}, { signal }: { signal?: AbortSignal } = {}): Promise<Pattern> {
     return new Promise((resolve, reject) => {
+      if (this._terminated) {
+        reject(new Error('Worker terminated'))
+        return
+      }
       if (signal?.aborted) {
         reject(signal.reason ?? new DOMException('Aborted', 'AbortError'))
         return
@@ -95,6 +101,7 @@ export default class TrianglifyWorker {
   }
 
   terminate (): void {
+    this._terminated = true
     this._worker.terminate()
     for (const [, handler] of this._pending) {
       handler.reject(new Error('Worker terminated'))

@@ -1,4 +1,5 @@
 v5
+- fix falsy seed determinism, guard generate() after terminate(), add browser-safe ESM entry, execute worker bundle in tests
 - add gap-free tiling tests, worker client unit tests, and coverage thresholds; document worker API and remove dead code
 - add exact nonconvex rosette tiling analysis doc
 - solve nonconvex rosette tiling exactly and remove empirical lattice corrections
