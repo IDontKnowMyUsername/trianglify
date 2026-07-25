@@ -61,10 +61,10 @@ function trianglify (_opts: Partial<TrianglifyOptions> = {}): Pattern {
   })
   const opts: TrianglifyOptions = { ...defaultOptions, ..._opts }
 
-  if (!(opts.height > 0)) {
+  if (typeof opts.height !== 'number' || !isFinite(opts.height) || opts.height <= 0) {
     throw TypeError(`invalid height: ${opts.height}`)
   }
-  if (!(opts.width > 0)) {
+  if (typeof opts.width !== 'number' || !isFinite(opts.width) || opts.width <= 0) {
     throw TypeError(`invalid width: ${opts.width}`)
   }
   if (typeof opts.cellSize !== 'number' || !isFinite(opts.cellSize) || opts.cellSize < 1) {
@@ -103,7 +103,7 @@ function trianglify (_opts: Partial<TrianglifyOptions> = {}): Pattern {
   // The first step here is to set up our color scales for the X and Y axis.
   // First, munge the shortcut options like 'random' or 'match' into real color
   // arrays. Then, set up a Chroma scale in the appropriate color space.
-  const processColorOpts = (colorOpt: string | string[] | false): string[] => {
+  const processColorOpts = (colorOpt: string | string[]): string[] => {
     if (Array.isArray(colorOpt)) {
       return colorOpt
     }
@@ -124,10 +124,21 @@ function trianglify (_opts: Partial<TrianglifyOptions> = {}): Pattern {
   const xScale = chroma.scale(xColors).mode(opts.colorSpace)
   const yScale = chroma.scale(yColors).mode(opts.colorSpace)
 
+  // Pentagon tiling shapes generate their complete geometry below and
+  // bypass the point-generation pipeline entirely, so don't run it for
+  // them — and reject custom points instead of silently ignoring them
+  const tilingShapes: Shape[] = ['pentagon-cairo', 'pentagon-convex', 'pentagon-nonconvex']
+  const isTilingShape = tilingShapes.includes(opts.shape)
+  if (isTilingShape && opts.points) {
+    throw TypeError(`custom points are not supported for tiling shape: ${opts.shape}`)
+  }
+
   // Our next step is to generate a pseudo-random grid of {x, y} points,
   // (or to simply utilize the points that were passed to us)
   // copy user-supplied points so shape generation never mutates the caller's array
-  let points: Point[] = opts.points ? opts.points.slice() : getPoints(opts, rand)
+  let points: Point[] = isTilingShape
+    ? []
+    : opts.points ? opts.points.slice() : getPoints(opts, rand)
 
   // For hexagons with grid layout, offset alternating rows for honeycomb tiling
   if (opts.shape === 'hexagon' && opts.pointGeneration === 'grid' && !opts.points) {
@@ -167,10 +178,7 @@ function trianglify (_opts: Partial<TrianglifyOptions> = {}): Pattern {
     return { css: () => cssValue }
   }
 
-  // Pentagon tiling shapes generate complete tiling geometry and
-  // bypass the normal point-generation + gap-filling pipeline
-  const tilingShapes: Shape[] = ['pentagon-cairo', 'pentagon-convex', 'pentagon-nonconvex']
-  if (tilingShapes.includes(shape)) {
+  if (isTilingShape) {
     const tiling = generateTiling(shape, width, height, opts.cellSize)
     points = tiling.points
     for (const vertexIndices of tiling.polys) {

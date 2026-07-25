@@ -19,8 +19,8 @@ export interface TrianglifyOptions {
   cellSize: number
   variance: number
   seed: string | number | null
-  xColors: string | string[] | false
-  yColors: string | string[] | false
+  xColors: string | string[]
+  yColors: string | string[]
   palette: Record<string, string[]> | string[][]
   colorSpace: 'rgb' | 'hsv' | 'hsl' | 'hsi' | 'lab' | 'hcl'
   colorFunction: ColorFunction

@@ -42,7 +42,7 @@ export default class TrianglifyWorker {
       const handler = this._pending.get(id)
       if (!handler) return
       this._pending.delete(id)
-      if (error) handler.reject(new Error(error))
+      if (error !== undefined) handler.reject(new Error(error))
       else if (data) handler.resolve(Pattern.fromData(data))
       else handler.reject(new Error('Worker returned neither data nor error'))
     }
@@ -96,7 +96,16 @@ export default class TrianglifyWorker {
           reject(error)
         }
       })
-      this._worker.postMessage({ id, opts: workerOpts })
+      try {
+        this._worker.postMessage({ id, opts: workerOpts })
+      } catch (err) {
+        // synchronous failure (e.g. DataCloneError on unserializable opts):
+        // reject through the stored handler so the abort listener is removed
+        // and the pending entry doesn't leak
+        const handler = this._pending.get(id)!
+        this._pending.delete(id)
+        handler.reject(err instanceof Error ? err : new Error(String(err)))
+      }
     })
   }
 

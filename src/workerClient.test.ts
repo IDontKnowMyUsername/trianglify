@@ -117,6 +117,31 @@ describe('generate()', () => {
     await expect(promise).rejects.toThrow('Worker returned neither data nor error')
   })
 
+  test('rejects with the reported error even when its message is empty', async () => {
+    const promise = worker.generate({})
+    mock.respondError(mock.posted[0]!.id, '')
+
+    const err = await promise.catch((e: Error) => e)
+    expect(err).toBeInstanceOf(Error)
+    expect(err.message).not.toContain('neither data nor error')
+  })
+
+  test('rejects and cleans up when postMessage throws synchronously', async () => {
+    mock.postMessage = () => {
+      throw new Error('could not clone options')
+    }
+    const controller = new AbortController()
+
+    await expect(
+      worker.generate({}, { signal: controller.signal })
+    ).rejects.toThrow('could not clone options')
+
+    // pending map must be empty: a stale response for that id is a no-op,
+    // and aborting afterwards must not throw either
+    expect(() => mock.respond(0, patternData())).not.toThrow()
+    expect(() => controller.abort()).not.toThrow()
+  })
+
   test('ignores responses with unknown ids', async () => {
     const promise = worker.generate({})
     expect(() => mock.respond(999, patternData())).not.toThrow()

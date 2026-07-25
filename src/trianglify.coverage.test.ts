@@ -1154,167 +1154,6 @@ describe('Radial and angular color functions', () => {
   })
 })
 
-describe('TrianglifyWorker (CJS coverage)', () => {
-  const mockWorkerInstances: MockWorker[] = []
-
-  class MockWorker {
-    url: string
-    onmessage: ((e: { data: any }) => void) | null = null
-    onerror: ((e: { message: string }) => void) | null = null
-    postMessage = jest.fn()
-    terminate = jest.fn()
-    addEventListener = jest.fn()
-    removeEventListener = jest.fn()
-
-    constructor (url: string) {
-      this.url = url
-      mockWorkerInstances.push(this)
-    }
-
-    simulateMessage (data: any) {
-      if (this.onmessage) {
-        this.onmessage({ data })
-      }
-    }
-
-    simulateError (message: string) {
-      if (this.onerror) {
-        this.onerror({ message })
-      }
-    }
-  }
-
-  beforeEach(() => {
-    mockWorkerInstances.length = 0
-    ;(global as any).Worker = MockWorker
-  })
-
-  afterEach(() => {
-    delete (global as any).Worker
-  })
-
-  const TrianglifyWorker = trianglify.TrianglifyWorker
-
-  test('constructor creates a Worker and sets up handlers', () => {
-    new TrianglifyWorker('test.worker.js')
-    expect(mockWorkerInstances).toHaveLength(1)
-    const mock = mockWorkerInstances[0]!
-    expect(mock.url).toBe('test.worker.js')
-    expect(mock.onmessage).toBeInstanceOf(Function)
-    expect(mock.onerror).toBeInstanceOf(Function)
-  })
-
-  test('generate sends message and resolves on success', async () => {
-    const tw = new TrianglifyWorker('test.worker.js')
-    const mock = mockWorkerInstances[0]!
-
-    const realPattern = trianglify({ seed: 'worker-gen', width: 100, height: 100 })
-    const data = realPattern.toData()
-
-    const promise = tw.generate({ seed: 'test', width: 100, height: 100 })
-    expect(mock.postMessage).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 0, opts: expect.any(Object) })
-    )
-
-    mock.simulateMessage({ id: 0, data })
-    const result = await promise
-    expect(result).toBeInstanceOf(Pattern)
-  })
-
-  test('generate rejects on worker error response', async () => {
-    const tw = new TrianglifyWorker('test.worker.js')
-    const mock = mockWorkerInstances[0]!
-
-    const promise = tw.generate({})
-    mock.simulateMessage({ id: 0, error: 'Something went wrong' })
-
-    await expect(promise).rejects.toThrow('Something went wrong')
-  })
-
-  test('generate rejects when worker returns neither data nor error', async () => {
-    const tw = new TrianglifyWorker('test.worker.js')
-    const mock = mockWorkerInstances[0]!
-
-    const promise = tw.generate({})
-    mock.simulateMessage({ id: 0 })
-
-    await expect(promise).rejects.toThrow('Worker returned neither data nor error')
-  })
-
-  test('onerror rejects all pending promises', async () => {
-    const tw = new TrianglifyWorker('test.worker.js')
-    const mock = mockWorkerInstances[0]!
-
-    const p1 = tw.generate({})
-    const p2 = tw.generate({})
-
-    mock.simulateError('Fatal error')
-
-    await expect(p1).rejects.toThrow('Fatal error')
-    await expect(p2).rejects.toThrow('Fatal error')
-  })
-
-  test('terminate rejects pending promises', async () => {
-    const tw = new TrianglifyWorker('test.worker.js')
-    const mock = mockWorkerInstances[0]!
-
-    const p1 = tw.generate({})
-    tw.terminate()
-
-    expect(mock.terminate).toHaveBeenCalled()
-    await expect(p1).rejects.toThrow('Worker terminated')
-  })
-
-  test('generate with already-aborted signal rejects immediately', async () => {
-    const tw = new TrianglifyWorker('test.worker.js')
-    const controller = new AbortController()
-    controller.abort()
-
-    await expect(
-      tw.generate({}, { signal: controller.signal })
-    ).rejects.toThrow()
-  })
-
-  test('generate with abort signal that fires mid-flight', async () => {
-    const tw = new TrianglifyWorker('test.worker.js')
-    const controller = new AbortController()
-
-    const promise = tw.generate({}, { signal: controller.signal })
-    controller.abort()
-
-    await expect(promise).rejects.toThrow()
-  })
-
-  test('serializes built-in color function descriptors', () => {
-    const tw = new TrianglifyWorker('test.worker.js')
-    const mock = mockWorkerInstances[0]!
-
-    const fn = trianglify.colorFunctions.sparkle(0.3)
-    tw.generate({ colorFunction: fn })
-
-    const sentOpts = mock.postMessage.mock.calls[0][0].opts
-    expect(sentOpts.colorFunction).toEqual({ name: 'sparkle', args: [0.3] })
-  })
-
-  test('strips custom color functions without descriptor', () => {
-    const tw = new TrianglifyWorker('test.worker.js')
-    const mock = mockWorkerInstances[0]!
-
-    const customFn = () => ({})
-    tw.generate({ colorFunction: customFn as any })
-
-    const sentOpts = mock.postMessage.mock.calls[0][0].opts
-    expect(sentOpts.colorFunction).toBeUndefined()
-  })
-
-  test('onmessage ignores unknown ids', () => {
-    new TrianglifyWorker('test.worker.js')
-    const mock = mockWorkerInstances[0]!
-
-    expect(() => mock.simulateMessage({ id: 999, data: {} })).not.toThrow()
-  })
-})
-
 describe('caller-supplied points', () => {
   test('input array is not mutated by polygon shape generation', () => {
     const inputPoints: Array<[number, number]> = []
@@ -1353,5 +1192,103 @@ describe('falsy seeds', () => {
 
   test('numeric seed matches its string form', () => {
     expect(svg(42)).toEqual(svg('42'))
+  })
+})
+
+describe('option validation edge cases', () => {
+  test('rejects non-numeric width and height', () => {
+    expect(() => trianglify({ width: '600' })).toThrow('invalid width')
+    expect(() => trianglify({ height: '400' })).toThrow('invalid height')
+    expect(() => trianglify({ width: Infinity })).toThrow('invalid width')
+  })
+
+  test('rejects xColors: false at runtime', () => {
+    expect(() => trianglify({ xColors: false })).toThrow('Unrecognized color option')
+  })
+
+  test('rejects custom points for tiling shapes', () => {
+    const pts: Array<[number, number]> = [[0, 0], [50, 0], [0, 50], [50, 50]]
+    expect(() =>
+      trianglify({ width: 100, height: 100, shape: 'pentagon-cairo', points: pts })
+    ).toThrow('custom points are not supported')
+  })
+})
+
+describe('SVG attribute escaping', () => {
+  test('escapes quotes in user-supplied strokeColor', () => {
+    const pattern = trianglify({
+      seed: 'escape',
+      width: 100,
+      height: 100,
+      fill: false,
+      strokeWidth: 1,
+      strokeColor: "red' onload='alert(1)"
+    })
+    const svgString = pattern.toSVGTree().toString()
+    expect(svgString).not.toContain("stroke='red' onload=")
+    expect(svgString).toContain('&apos;')
+  })
+})
+
+describe('angular color function wrapping', () => {
+  test('negative offsets wrap instead of clamping at the scale ends', () => {
+    const base = { seed: 'angular-wrap', width: 100, height: 100 }
+    const a = trianglify({ ...base, colorFunction: trianglify.colorFunctions.angular(-1) })
+    const b = trianglify({ ...base, colorFunction: trianglify.colorFunctions.angular(-1 + 2 * Math.PI) })
+    expect(a.toSVGTree().toString()).toEqual(b.toSVGTree().toString())
+  })
+})
+
+describe('sphere layout canvas coverage', () => {
+  const inTriangle = (
+    px: number, py: number,
+    [ax, ay]: number[], [bx, by]: number[], [cx, cy]: number[]
+  ): boolean => {
+    const d1 = (px - bx!) * (ay! - by!) - (ax! - bx!) * (py - by!)
+    const d2 = (px - cx!) * (by! - cy!) - (bx! - cx!) * (py - cy!)
+    const d3 = (px - ax!) * (cy! - ay!) - (cx! - ax!) * (py - ay!)
+    const hasNeg = d1 < 0 || d2 < 0 || d3 < 0
+    const hasPos = d1 > 0 || d2 > 0 || d3 > 0
+    return !(hasNeg && hasPos)
+  }
+
+  test('triangulation covers all four canvas corners', () => {
+    const width = 600
+    const height = 400
+    const pattern = trianglify({
+      width,
+      height,
+      cellSize: 25,
+      pointGeneration: 'sphere',
+      seed: 'sphere-corners'
+    })
+    const corners = [[0, 0], [width, 0], [0, height], [width, height]]
+    corners.forEach(([px, py]) => {
+      const covered = pattern.polys.some((poly: { vertexIndices: number[] }) => {
+        const [a, b, c] = poly.vertexIndices.map((i: number) => pattern.points[i])
+        return inTriangle(px!, py!, a, b, c)
+      })
+      expect(covered).toBe(true)
+    })
+  })
+})
+
+describe('colorSpace option', () => {
+  const spaces = ['rgb', 'hsv', 'hsl', 'hsi', 'lab', 'hcl']
+
+  test('generates valid patterns in every supported color space', () => {
+    spaces.forEach(colorSpace => {
+      const pattern = trianglify({ seed: 'colorspace', width: 100, height: 100, colorSpace })
+      expect(pattern.polys.length).toBeGreaterThan(0)
+      pattern.polys.forEach((poly: { color: { css: () => string } }) => {
+        expect(poly.color.css()).toMatch(/^(rgb|hsl|#)/)
+      })
+    })
+  })
+
+  test('different color spaces interpolate differently', () => {
+    const svgFor = (colorSpace: string) =>
+      trianglify({ seed: 'colorspace', width: 100, height: 100, colorSpace }).toSVGTree().toString()
+    expect(svgFor('rgb')).not.toEqual(svgFor('lab'))
   })
 })

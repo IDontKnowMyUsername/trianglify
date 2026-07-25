@@ -76,7 +76,10 @@ export const angular = (offset = 0): ColorFunction => {
     const cx = opts.width / 2
     const cy = opts.height / 2
     const angle = Math.atan2(centroid.y - cy, centroid.x - cx)
-    const t = ((angle + Math.PI + offset) % (2 * Math.PI)) / (2 * Math.PI)
+    const TWO_PI = 2 * Math.PI
+    // double modulo: JS % keeps the dividend's sign, so negative offsets
+    // would otherwise clamp at the scale ends instead of wrapping
+    const t = (((angle + Math.PI + offset) % TWO_PI + TWO_PI) % TWO_PI) / TWO_PI
     return xScale(t)
   }
   fn._descriptor = { name: 'angular', args: [offset] }

@@ -22,9 +22,10 @@ export default function sphere(
   // Target point count: match density of grid algorithm
   const targetCount = (Math.floor(width / cellSize) + 4) * (Math.floor(height / cellSize) + 4)
 
-  // Sphere radius: fits the padded canvas area
-  const radiusX = cx + pad
-  const radiusY = cy + pad
+  // Sphere radius: √2 × the padded half-extents — a projected disk merely
+  // inscribed in the padded rect leaves the canvas corners un-triangulated
+  const radiusX = Math.SQRT2 * (cx + pad)
+  const radiusY = Math.SQRT2 * (cy + pad)
 
   const jitterAmount = cellSize * variance * 0.25
   const points: Point[] = []

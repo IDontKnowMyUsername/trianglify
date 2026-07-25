@@ -40,6 +40,9 @@ self.onmessage = (e: MessageEvent) => {
     const pattern = trianglify(opts)
     self.postMessage({ id, data: pattern.toData() })
   } catch (err) {
-    self.postMessage({ id, error: (err as Error).message })
+    // non-Error throws (strings, objects) have no .message — stringify them
+    // so the client reports the real failure
+    const message = err instanceof Error ? err.message : String(err)
+    self.postMessage({ id, error: message || 'Unknown worker error' })
   }
 }

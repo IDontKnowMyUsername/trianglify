@@ -17,13 +17,25 @@ function deduplicateVertices(rawPolys: Point[][]): TilingResult {
   const points: Point[] = []
 
   const getIndex = (p: Point): number => {
-    const key = `${Math.round(p[0] * factor)},${Math.round(p[1] * factor)}`
-    let idx = vertMap.get(key)
-    if (idx === undefined) {
-      idx = points.length
-      points.push(p)
-      vertMap.set(key, idx)
+    const qx = Math.round(p[0] * factor)
+    const qy = Math.round(p[1] * factor)
+    // search the 3×3 bucket neighborhood: two float representations of
+    // the same lattice vertex can round into adjacent buckets, which
+    // would split one vertex into two indices
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dy = -1; dy <= 1; dy++) {
+        const idx = vertMap.get(`${qx + dx},${qy + dy}`)
+        if (idx !== undefined) {
+          const [ex, ey] = points[idx]!
+          if (Math.abs(ex - p[0]) < EPSILON && Math.abs(ey - p[1]) < EPSILON) {
+            return idx
+          }
+        }
+      }
     }
+    const idx = points.length
+    points.push(p)
+    vertMap.set(`${qx},${qy}`, idx)
     return idx
   }
 
@@ -41,6 +53,35 @@ function deduplicateVertices(rawPolys: Point[][]): TilingResult {
   }
 
   return { points, polys }
+}
+
+/**
+ * Tight (i,j) index bounds for a lattice {u, v} covering the canvas
+ * plus a padding margin: invert the lattice transform at the padded
+ * canvas corners, then widen by one index on each side.
+ */
+function latticeBounds(
+  ux: number, uy: number, vx: number, vy: number,
+  width: number, height: number, pad: number
+): { i0: number; i1: number; j0: number; j1: number } {
+  const det = ux * vy - vx * uy
+  const canvasCorners: Point[] = [
+    [-pad, -pad], [width + pad, -pad],
+    [width + pad, height + pad], [-pad, height + pad]
+  ]
+  let iMin = Infinity, iMax = -Infinity, jMin = Infinity, jMax = -Infinity
+  for (const [px, py] of canvasCorners) {
+    const fi = (vy * px - vx * py) / det
+    const fj = (-uy * px + ux * py) / det
+    iMin = Math.min(iMin, fi); iMax = Math.max(iMax, fi)
+    jMin = Math.min(jMin, fj); jMax = Math.max(jMax, fj)
+  }
+  return {
+    i0: Math.floor(iMin) - 1,
+    i1: Math.ceil(iMax) + 1,
+    j0: Math.floor(jMin) - 1,
+    j1: Math.ceil(jMax) + 1
+  }
 }
 
 // ─── Cairo Tiling ────────────────────────────────────────────────
@@ -85,25 +126,8 @@ function generateCairoTiling(width: number, height: number, cellSize: number): T
   const ux = a * (1 + s7) / 4, uy = a * (7 + s7) / 4
   const vx = a * (7 + s7) / 4, vy = -a * (1 + s7) / 4
 
-  // Compute tight (i,j) bounds
   const bleed = 2
-  const det = ux * vy - vx * uy
-  const pad = bleed * L
-  const canvasCorners: Point[] = [
-    [-pad, -pad], [width + pad, -pad],
-    [width + pad, height + pad], [-pad, height + pad]
-  ]
-  let iMin = Infinity, iMax = -Infinity, jMin = Infinity, jMax = -Infinity
-  for (const [px, py] of canvasCorners) {
-    const fi = (vy * px - vx * py) / det
-    const fj = (-uy * px + ux * py) / det
-    iMin = Math.min(iMin, fi); iMax = Math.max(iMax, fi)
-    jMin = Math.min(jMin, fj); jMax = Math.max(jMax, fj)
-  }
-  const i0 = Math.floor(iMin) - 1
-  const i1 = Math.ceil(iMax) + 1
-  const j0 = Math.floor(jMin) - 1
-  const j1 = Math.ceil(jMax) + 1
+  const { i0, i1, j0, j1 } = latticeBounds(ux, uy, vx, vy, width, height, bleed * L)
 
   const rawPolys: Point[][] = []
 
@@ -167,25 +191,8 @@ function generateConvexTiling(width: number, height: number, cellSize: number): 
   const ux = 9 * s / 4, uy = s * s3 / 4
   const vx = 3 * s / 4, vy = 5 * s * s3 / 4
 
-  // Compute tight (i,j) bounds
   const bleed = 2
-  const det = ux * vy - vx * uy
-  const pad = bleed * cellSize
-  const canvasCorners: Point[] = [
-    [-pad, -pad], [width + pad, -pad],
-    [width + pad, height + pad], [-pad, height + pad]
-  ]
-  let iMin = Infinity, iMax = -Infinity, jMin = Infinity, jMax = -Infinity
-  for (const [px, py] of canvasCorners) {
-    const fi = (vy * px - vx * py) / det
-    const fj = (-uy * px + ux * py) / det
-    iMin = Math.min(iMin, fi); iMax = Math.max(iMax, fi)
-    jMin = Math.min(jMin, fj); jMax = Math.max(jMax, fj)
-  }
-  const i0 = Math.floor(iMin) - 1
-  const i1 = Math.ceil(iMax) + 1
-  const j0 = Math.floor(jMin) - 1
-  const j1 = Math.ceil(jMax) + 1
+  const { i0, i1, j0, j1 } = latticeBounds(ux, uy, vx, vy, width, height, bleed * cellSize)
 
   const rawPolys: Point[][] = []
 
@@ -282,26 +289,9 @@ function generateNonconvexTiling(width: number, height: number, cellSize: number
   const c60 = Math.cos(Math.PI / 3), s60 = Math.sin(Math.PI / 3)
   const vx = ux * c60 - uy * s60, vy = ux * s60 + uy * c60
 
-  // Compute tight (i,j) bounds
   const bleed = 2
   const latticeLen = Math.sqrt(ux * ux + uy * uy)
-  const det = ux * vy - vx * uy
-  const pad = bleed * latticeLen
-  const canvasCorners: Point[] = [
-    [-pad, -pad], [width + pad, -pad],
-    [width + pad, height + pad], [-pad, height + pad]
-  ]
-  let iMin = Infinity, iMax = -Infinity, jMin = Infinity, jMax = -Infinity
-  for (const [px, py] of canvasCorners) {
-    const fi = (vy * px - vx * py) / det
-    const fj = (-uy * px + ux * py) / det
-    iMin = Math.min(iMin, fi); iMax = Math.max(iMax, fi)
-    jMin = Math.min(jMin, fj); jMax = Math.max(jMax, fj)
-  }
-  const i0 = Math.floor(iMin) - 1
-  const i1 = Math.ceil(iMax) + 1
-  const j0 = Math.floor(jMin) - 1
-  const j1 = Math.ceil(jMax) + 1
+  const { i0, i1, j0, j1 } = latticeBounds(ux, uy, vx, vy, width, height, bleed * latticeLen)
 
   const rawPolys: Point[][] = []
 

@@ -45,6 +45,7 @@ Tests use `require()` to load CJS/UMD dist bundles, compiled via ts-jest.
 - Serialization tests: `src/serialization.test.ts` (Pattern toData/fromData, color function descriptors)
 - Worker bundle tests: `src/worker.bundle.test.ts` (executes dist/trianglify.worker.js against a mock scope)
 - Worker client tests: `src/workerClient.test.ts` (TrianglifyWorker with a mock Worker)
+- Bundle artifact tests: `src/bundles.test.ts` (minified UMD parity, ESM entries via child-process import)
 
 ## Output Bundles
 

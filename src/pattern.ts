@@ -35,12 +35,17 @@ const sDOM: Serializer<SVGElement> = (tagName, attrs = {}, children?, existingRo
   return elem
 }
 
-// serialize attrs object to XML attributes. Assumes everything is already
-// escaped (safe input).
+// escape XML attribute values — they can contain user-supplied strings
+// like strokeColor
+const escapeAttr = (v: string): string => (
+  v.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/'/g, '&apos;').replace(/"/g, '&quot;')
+)
+
+// serialize attrs object to XML attributes
 const serializeAttrs = (attrs: SVGAttrs): string => (
   Object.entries(attrs)
     .filter(([_, v]) => v !== undefined)
-    .map(([k, v]) => `${k}='${v}'`)
+    .map(([k, v]) => `${k}='${escapeAttr(String(v))}'`)
     .join(' ')
 )
 
