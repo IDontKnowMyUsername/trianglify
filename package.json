@@ -25,10 +25,11 @@
     "lint": "eslint src/",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
     "test": "jest",
+    "test:coverage": "jest --coverage",
     "build": "tsc -p tsconfig.build.json && rollup -c",
     "dev": "rollup -c -w",
     "publish-beta": "pnpm run build && pnpm publish --tag next",
-    "ci": "pnpm run typecheck && pnpm run lint && pnpm run build && pnpm run test"
+    "ci": "pnpm run typecheck && pnpm run lint && pnpm run build && pnpm run test:coverage"
   },
   "dependencies": {
     "chroma-js": "^3.2.0",
@@ -76,7 +77,15 @@
     "coveragePathIgnorePatterns": [
       "/node_modules/",
       "trianglify\\.bundle"
-    ]
+    ],
+    "coverageThreshold": {
+      "global": {
+        "statements": 95,
+        "branches": 87,
+        "functions": 92,
+        "lines": 95
+      }
+    }
   },
   "author": "Quinn Rohlf <qr@qrohlf.com>",
   "license": "GPL-3.0",

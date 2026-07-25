@@ -7,7 +7,7 @@ Pull requests and issues are welcome! For all contributions, please:
 
 ## Issues
 
-If you're submitting a bug, please include the enivronment (browser/node) and relevant environment version(s) that you have encountered the bug in.
+If you're submitting a bug, please include the environment (browser/node) and relevant environment version(s) that you have encountered the bug in.
 
 ## Pull Requests
 
@@ -15,6 +15,6 @@ If you're submitting a bug, please include the enivronment (browser/node) and re
 
 1. Fork the repo on GitHub.
 2. Install dependencies with `pnpm install`
-2. Create a topic branch and make your changes.
-3.  Run `pnpm run ci` to test your code and compile it to trianglify.min.js.
-4. Submit a pull request to merge your topic branch into `master`.
+3. Create a topic branch and make your changes.
+4. Run `pnpm run ci` to typecheck, lint, build, and test your code.
+5. Submit a pull request to merge your topic branch into `master`.

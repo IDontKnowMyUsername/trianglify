@@ -12,11 +12,3 @@ export const getCentroid = (d: Point[]): Centroid => {
   }
   return { x: x / n, y: y / n }
 }
-
-export const getTopmostVertexIndex = (vertexIndices: number[], points: Point[]): number => (
-  // vertexIndices are produced by Delaunator and guaranteed within bounds of points
-  vertexIndices.reduce(
-    (topmost, i) => (points[i]![1] < points[topmost]![1] ? i : topmost),
-    vertexIndices[0]!
-  )
-)

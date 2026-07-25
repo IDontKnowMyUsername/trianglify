@@ -7,9 +7,10 @@ TypeScript library for generating colorful triangle mesh patterns as SVG/Canvas.
 - `pnpm install` — install dependencies
 - `pnpm run build` — emit declarations via tsc, then build dist/ bundles via Rollup
 - `pnpm run test` — run Jest tests (requires build first)
+- `pnpm run test:coverage` — run Jest tests with coverage collection and threshold enforcement
 - `pnpm run typecheck` — run TypeScript type checking (no emit)
 - `pnpm run lint` — run ESLint with typescript-eslint
-- `pnpm run ci` — typecheck + lint + build + test (full CI pipeline)
+- `pnpm run ci` — typecheck + lint + build + test with coverage (full CI pipeline)
 
 ## Architecture
 
@@ -30,7 +31,7 @@ TypeScript library for generating colorful triangle mesh patterns as SVG/Canvas.
 
 - `tsconfig.json` — main config for type checking (noEmit)
 - `tsconfig.build.json` — extends main, emits declaration files to dist/types/
-- `tsconfig.worker.json` — extends main, uses WebWorker lib instead of DOM
+- `tsconfig.worker.json` — extends main, adds WebWorker lib (keeps DOM for the shared render code in pattern.ts)
 - `tsconfig.test.json` — extends main, CommonJS module for test files (ts-jest)
 
 ## Testing

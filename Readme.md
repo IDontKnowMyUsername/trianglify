@@ -180,6 +180,39 @@ const canvasOpts = {
 }
 ```
 
+**`pattern.toData()`** / **`trianglify.Pattern.fromData(data)`**
+
+`pattern.toData()` serializes the pattern to a plain object (colors become CSS strings) that survives `JSON.stringify` or `postMessage`. `trianglify.Pattern.fromData(data)` reconstructs a renderable `Pattern` from that data. This is useful for caching generated patterns, and it is how the Web Worker support (below) transfers patterns between threads.
+
+## TrianglifyWorker
+
+Pattern generation can be offloaded to a Web Worker to keep the main thread responsive. Use the `TrianglifyWorker` client together with the prebuilt worker bundle (`dist/trianglify.worker.js`, also exposed as the `trianglify/worker` package export):
+
+```js
+const worker = new trianglify.TrianglifyWorker('path/to/trianglify.worker.js')
+
+const pattern = await worker.generate({ width: 800, height: 600 })
+pattern.toCanvas(myCanvas)
+
+worker.terminate() // when you're done with it
+```
+
+**`worker.generate(options, { signal })`**
+
+Accepts the same options object as the `trianglify` function and returns a `Promise<Pattern>`. The optional second argument accepts an `AbortSignal` to cancel a pending generation:
+
+```js
+const controller = new AbortController()
+const promise = worker.generate({ width: 4000, height: 4000 }, { signal: controller.signal })
+controller.abort() // rejects the promise with an AbortError
+```
+
+Built-in color functions (e.g. `trianglify.colorFunctions.sparkle(0.2)`) are automatically serialized and re-created inside the worker. Custom color functions cannot be transferred — patterns generated in the worker will fall back to the default `interpolateLinear` coloring.
+
+**`worker.terminate()`**
+
+Terminates the underlying Web Worker and rejects any pending `generate` promises.
+
 # 🎨 Configuration
 
 Trianglify is configured by an options object passed in as the only argument. The following option keys are supported, see below for a complete description of what each option does.
