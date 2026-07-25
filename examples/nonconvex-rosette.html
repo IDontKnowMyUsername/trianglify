@@ -60,12 +60,13 @@
       // ─── Initial vertex positions (mirrors tilings.ts) ─────────
       // Angles: B=30°, C=60°, D=120°, E=240°, A=90° (all ×30°, sum 540°)
       // Edge dirs: B→C=15°, C→D=E→A=135°, D→E=195°, A→B=225°
+      // Exact tiling constants (see docs/nonconvex-rosette-analysis.md):
+      // rBC scaled so the rosette lattice pitch √39/4 · rBC = cellSize
       const cellSize = 200
       const halfAngle = Math.PI / 12
-      const r = cellSize / 1.68
-      const rBC = r * 1.047
-      const rAB = r * 0.668  // BC/AB ≈ 1.568 from reference
-      const shoulderRatio = 0.543  // AE/DC = eaLen/cdLen from reference
+      const rBC = 4 * cellSize / Math.sqrt(39)
+      const rAB = rBC * 3 * Math.sqrt(3) / 8  // BC/AB = 8√3/9 exactly
+      const shoulderRatio = 0.5               // EA/CD = 1/2 exactly
 
       const dirShoulder = 3 * Math.PI / 4   // 135° (C→D and E→A)
       const dirIndent = 13 * Math.PI / 12   // 195° (D→E)

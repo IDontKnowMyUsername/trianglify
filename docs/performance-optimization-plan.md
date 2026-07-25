@@ -1,5 +1,13 @@
 # Trianglify Performance Optimization Plan
 
+> **Status (2026-07): historical — this plan has been executed.** Part A
+> shipped except A5/A7 (the wrapper objects and `forEach` calls remain in
+> pattern.ts). Part B shipped as the `pointGeneration` option (named
+> `pointDistribution` in this plan) with one design change: `variance` IS
+> applied as jitter by the Poisson-disc generator. Line-number references
+> below describe the pre-implementation code and no longer match the
+> current source. Kept for design rationale only.
+
 ## Table of Contents
 
 - [Overview](#overview)

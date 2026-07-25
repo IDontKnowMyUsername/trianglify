@@ -57,6 +57,8 @@ const file = fs.createWriteStream('trianglify.png')
 canvas.createPNGStream().pipe(file)
 ```
 
+Note: `toCanvas()` in Node requires the optional [node-canvas](https://github.com/Automattic/node-canvas) peer dependency (`pnpm add canvas`). SVG output via `toSVG()`/`toSVGTree()` works without it.
+
 You can see the [`examples/`](./examples) folder for more usage examples.
 
 The https://trianglify.io/ GUI is a good place to play around with the various configuration parameters and see their effect on the generated output, live.
@@ -258,7 +260,7 @@ Decimal value between 0 and 1 (inclusive), defaults to `0.75`. Specify the amoun
 
 **`seed`**
 
-String, defaults to `null`. Seeds the random number generator to create repeatable patterns. When set to null, the RNG will be seeded with random values from the environment. An example usage would be passing in blog post titles as the seed to generate unique but consistient trianglify patterns for every post on a blog site.
+String or number, defaults to `null`. Seeds the random number generator to create repeatable patterns. When set to null, the RNG will be seeded with random values from the environment. An example usage would be passing in blog post titles as the seed to generate unique but consistient trianglify patterns for every post on a blog site.
 
 **`xColors`**
 
@@ -302,7 +304,7 @@ String or null, defaults to `null`. Specify a CSS-formatted color to use for pol
 
 **`points`**
 
-Array of points ([x, y]) to triangulate, defaults to null. When not specified an array randomised points is generated filling the space. Points must be within the coordinate space defined by `width` and `height`. See [`examples/custom-points-example.html`](./examples/custom-points-example.html) for a demonstration of how this option can be used to generate circular trianglify patterns.
+Array of points ([x, y]) to triangulate, defaults to null. When not specified an array randomised points is generated filling the space. Points must be within the coordinate space defined by `width` and `height`. Not supported with the pentagonal tiling shapes (`pentagon-cairo`, `pentagon-convex`, `pentagon-nonconvex`), which generate their own geometry — combining the two throws a TypeError. See [`examples/custom-points-example.html`](./examples/custom-points-example.html) for a demonstration of how this option can be used to generate circular trianglify patterns.
 
 **`pointGeneration`**
 
