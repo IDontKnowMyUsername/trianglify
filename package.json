@@ -27,14 +27,14 @@
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
     "test": "jest",
     "test:coverage": "jest --coverage",
-    "build": "tsc -p tsconfig.build.json && rollup -c",
+    "build": "tsc -p tsconfig.build.json && rollup -c && node -e \"require('fs').rmSync('dist/types',{recursive:true,force:true})\"",
     "dev": "rollup -c -w",
+    "prepublishOnly": "pnpm run ci",
     "publish-beta": "pnpm run build && pnpm publish --tag next",
     "ci": "pnpm run typecheck && pnpm run lint && pnpm run build && pnpm run test:coverage"
   },
   "dependencies": {
-    "chroma-js": "^3.2.0",
-    "delaunator": "^5.1.0"
+    "chroma-js": "^3.2.0"
   },
   "peerDependencies": {
     "canvas": ">=2.0.0"
@@ -54,7 +54,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git://github.com/qrohlf/trianglify.git"
+    "url": "git+https://github.com/qrohlf/trianglify.git"
   },
   "keywords": [
     "svg",
@@ -105,6 +105,7 @@
     "@types/jest": "^30.0.0",
     "@types/node": "^25.5.0",
     "canvas": "^3.2.2",
+    "delaunator": "^5.1.0",
     "eslint": "^10.1.0",
     "jest": "^30.3.0",
     "jest-canvas-mock": "^2.5.2",
@@ -113,6 +114,7 @@
     "rollup-plugin-bundle-size": "^1.0.3",
     "rollup-plugin-dts": "^6.4.1",
     "ts-jest": "29.4.6",
+    "tslib": "^2.8.1",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.57.2"
   },
