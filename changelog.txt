@@ -1,4 +1,5 @@
 v5.0.0 (unreleased)
+- sync pnpm-lock.yaml with @types/chroma-js runtime dependency (2026-07-26)
 - fix canvas halo divergence with explicit strokeColor, deep-freeze colorbrewer, cap point allocations, make shape dispatch exhaustive, add fuzz/error-path/ESM-entry tests, add ESM/TypeScript examples, harden postbuild and lint scripts, SHA-pin and extend CI (all-branch triggers, multi-OS, CodeQL, dependency review, coverage summary, publish tag guard) (2026-07-26)
 - fix coverage measurement (inlineSources + single-bundle collection), deep-validate palettes/colors/fromData, add public API JSDoc and Point/Centroid exports, fix hexagon honeycomb spacing and poisson point-count invariant, add v4-to-v5 migration guide and rewrite v5 release notes (2026-07-26)
 
