@@ -1,5 +1,5 @@
 // Basic command-line example
-// Usage: node save-as-png.js
+// Usage: node save-as-png.cjs
 const fs = require('fs')
 const trianglify = require('../dist/trianglify.cjs')
 

@@ -92,12 +92,17 @@ function trianglify (_opts: Partial<TrianglifyOptions> = {}): Pattern {
   // standard randomizer, used for point gen and layout
   const rand = mulberry32(opts.seed)
 
+  // palette selection gets its own salted randomizer so that color options
+  // never consume draws from the geometry stream — xColors: 'random' must
+  // not change the point layout for a given seed
+  const paletteRand = mulberry32(opts.seed != null ? String(opts.seed) + 'palette' : null)
+
   const randomFromPalette = (): string[] => {
     if (Array.isArray(opts.palette)) {
-      return opts.palette[Math.floor(rand() * opts.palette.length)]!
+      return opts.palette[Math.floor(paletteRand() * opts.palette.length)]!
     }
     const palettes = Object.values(opts.palette)
-    return palettes[Math.floor(rand() * palettes.length)]!
+    return palettes[Math.floor(paletteRand() * palettes.length)]!
   }
 
   // The first step here is to set up our color scales for the X and Y axis.

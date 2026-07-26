@@ -264,7 +264,7 @@ String or number, defaults to `null`. Seeds the random number generator to creat
 
 **`xColors`**
 
-False, string, or array of CSS-formatted colors, default is `'random'`. Specify the color gradient used on the x axis.
+String or array of CSS-formatted colors, default is `'random'`. Specify the color gradient used on the x axis.
 
 Valid string values are 'random', or the name of a [colorbrewer palette](http://bl.ocks.org/mbostock/5577023) (i.e. 'YlGnBu' or 'RdBu'). When set to 'random', a gradient will be randomly selected from the colorbrewer library.
 
@@ -272,7 +272,7 @@ Valid array values should specify the color stops in any CSS format (i.e. `['#00
 
 **`yColors`**
 
-False, string or array of CSS-formatted colors, default is `'match'`. When set to 'match' the x-axis color gradient will be used on both axes. Otherwise, accepts the same options as xColors.
+String or array of CSS-formatted colors, default is `'match'`. When set to 'match' the x-axis color gradient will be used on both axes. Otherwise, accepts the same options as xColors.
 
 **`palette`**
 
@@ -329,7 +329,7 @@ String, defaults to `'triangle'`. Selects the geometry the pattern is built from
 - `'pentagon-convex'` — a type 5 convex pentagon tiling forming 6-fold rosettes
 - `'pentagon-nonconvex'` — a non-convex pentagon tiling forming 12-fold star rosettes
 
-The three `pentagon-*` values generate complete plane tilings directly from `cellSize`, so they ignore the `points`, `pointGeneration`, and `variance` options. See [`examples/shapes-and-layouts.html`](./examples/shapes-and-layouts.html) and [`examples/nonconvex-rosette.html`](./examples/nonconvex-rosette.html).
+The three `pentagon-*` values generate complete plane tilings directly from `cellSize`, so they ignore the `pointGeneration` and `variance` options — and throw a TypeError if custom `points` are supplied. See [`examples/shapes-and-layouts.html`](./examples/shapes-and-layouts.html) and [`examples/nonconvex-tiling.html`](./examples/nonconvex-tiling.html).
 
 **`spiralDirection`**
 

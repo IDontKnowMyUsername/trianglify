@@ -4,6 +4,21 @@ import typescript from '@rollup/plugin-typescript'
 import terser from '@rollup/plugin-terser'
 import bundleSize from 'rollup-plugin-bundle-size'
 import dts from 'rollup-plugin-dts'
+import { readFileSync } from 'node:fs'
+
+const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'))
+
+// license attribution for the standalone bundles, which inline third-party
+// code (BSD-3-Clause and Apache-2.0 require notice retention in binary
+// redistribution) — the /*! marker plus terser's `comments: 'some'` keeps
+// this through minification
+const licenseBanner = `/*!
+ * Trianglify v${pkg.version} <https://github.com/qrohlf/trianglify> — GPL-3.0 © Quinn Rohlf
+ * Bundled dependencies:
+ *   chroma-js © Gregor Aisch — BSD-3-Clause & Apache-2.0
+ *   delaunator © Mapbox — ISC
+ *   robust-predicates port © Vladimir Agafonkin — Unlicense
+ */`
 
 export default [
   { // build for node & module bundlers (CJS + ESM)
@@ -11,7 +26,14 @@ export default [
     external: ['chroma-js'],
     plugins: [resolve(), commonjs(), typescript({ tsconfig: './tsconfig.json', declaration: false }), bundleSize()],
     output: [
-      { file: 'dist/trianglify.cjs', format: 'cjs', sourcemap: true },
+      {
+        file: 'dist/trianglify.cjs',
+        format: 'cjs',
+        sourcemap: true,
+        // expose a `default` self-reference so the CJS runtime shape matches
+        // the default export declared in trianglify.d.cts
+        footer: 'module.exports.default = module.exports;'
+      },
       {
         file: 'dist/trianglify.mjs',
         format: 'es',
@@ -33,20 +55,20 @@ export default [
     // build minified bundle to be used standalone for browser use
     // note: // chroma.js weighs 40k minified, a smaller solution would be nice
     input: 'src/trianglify.ts',
-    plugins: [terser({ output: { comments: false } }), resolve({ browser: true }), commonjs(), typescript({ tsconfig: './tsconfig.json', declaration: false }), bundleSize()],
-    output: { file: 'dist/trianglify.bundle.js', format: 'umd', name: 'trianglify', sourcemap: true }
+    plugins: [terser({ format: { comments: 'some' } }), resolve({ browser: true }), commonjs(), typescript({ tsconfig: './tsconfig.json', declaration: false }), bundleSize()],
+    output: { file: 'dist/trianglify.bundle.js', format: 'umd', name: 'trianglify', sourcemap: true, banner: licenseBanner }
   },
   {
     // build non-minified bundle to be used for debugging
     input: 'src/trianglify.ts',
     plugins: [resolve({ browser: true }), commonjs(), typescript({ tsconfig: './tsconfig.json', declaration: false }), bundleSize()],
-    output: { file: 'dist/trianglify.bundle.debug.js', format: 'umd', name: 'trianglify', sourcemap: true }
+    output: { file: 'dist/trianglify.bundle.debug.js', format: 'umd', name: 'trianglify', sourcemap: true, banner: licenseBanner }
   },
   {
     // build minified web worker bundle for offloading pattern generation
     input: 'src/worker.ts',
-    plugins: [terser({ output: { comments: false } }), resolve({ browser: true }), commonjs(), typescript({ tsconfig: './tsconfig.worker.json', declaration: false }), bundleSize()],
-    output: { file: 'dist/trianglify.worker.js', format: 'iife', sourcemap: true }
+    plugins: [terser({ format: { comments: 'some' } }), resolve({ browser: true }), commonjs(), typescript({ tsconfig: './tsconfig.worker.json', declaration: false }), bundleSize()],
+    output: { file: 'dist/trianglify.worker.js', format: 'iife', sourcemap: true, banner: licenseBanner }
   },
   {
     // bundle type declarations into a single .d.ts file

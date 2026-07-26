@@ -550,25 +550,6 @@ describe('Varied triangulation inputs', () => {
     expect(pattern.polys.length).toBeGreaterThan(0)
   })
 
-  test('points triggering adaptive orient2d (large coords, nearly collinear)', () => {
-    // Points with coordinates that cause collinear triples where
-    // detsum > 0 but det ≈ 0, triggering orient2dadapt
-    const points: [number, number][] = [
-      [10, 10], [20, 20], [30, 30],      // exactly collinear on y=x
-      [40, 40], [50, 50], [60, 60],      // more collinear points
-      [10, 60], [60, 10],                // off-diagonal anchors
-      [35, 35.0000000001],               // nearly collinear perturbation
-      [25, 25], [45, 45], [15, 45], [45, 15]
-    ]
-    const pattern = trianglify({
-      width: 70,
-      height: 70,
-      points,
-      seed: 'orient2d-adapt'
-    })
-    expect(pattern).toBeInstanceOf(Pattern)
-  })
-
   test('high point density grid (exercises more Delaunator legalize paths)', () => {
     // A large grid with many points exercises more Delaunator internal paths
     // including _legalize edge flips and hull updates
@@ -599,73 +580,6 @@ describe('Varied triangulation inputs', () => {
       height: 100,
       points,
       seed: 'circular'
-    })
-    expect(pattern.polys.length).toBeGreaterThan(0)
-  })
-
-  test('minimal point set forcing orient2d on collinear triple with FP rounding', () => {
-    // 4 points where 3 are on y=x with mixed magnitudes (0.1 to 1e15).
-    // The 4th point (off-diagonal) forces a hull where the collinear-ish
-    // edge is tested during insertion, triggering orient2dadapt with
-    // non-zero tails from FP rounding in the coordinate subtractions.
-    const points: [number, number][] = [
-      [0.1, 0.1],
-      [5e14, 5e14],
-      [1e15, 1e15],
-      [0.1, 1e15],
-    ]
-    const pattern = trianglify({
-      width: 1e15,
-      height: 1e15,
-      points,
-      seed: 'orient2d-tails'
-    })
-    expect(pattern).toBeInstanceOf(Pattern)
-  })
-
-  test('collinear-ish points at different scales forcing adaptive arithmetic', () => {
-    // Multiple points on y=x at scale 1e15 with a small offset point
-    // ensures orient2d is called with triples where subtraction loses
-    // low-order bits, producing non-zero error tails
-    const points: [number, number][] = [
-      [0.1, 0.1],
-      [1e14, 1e14],
-      [2e14, 2e14],
-      [5e14, 5e14],
-      [1e15, 1e15],
-      [0.1, 1e15],       // off-diagonal anchor
-      [1e15, 0.1],       // off-diagonal anchor
-    ]
-    const pattern = trianglify({
-      width: 1e15,
-      height: 1e15,
-      points,
-      seed: 'multi-scale-collinear'
-    })
-    expect(pattern.polys.length).toBeGreaterThan(0)
-  })
-
-  test('points spanning huge range trigger deep orient2dadapt', () => {
-    // Extreme coordinate range: some at ~0.1, others at ~1e15
-    // Forces orient2dadapt into the full adaptive path (lines 160+)
-    // because subtractions like 0.1 - 1e15 lose the 0.1 term entirely
-    const S = 1e15
-    const points: [number, number][] = [
-      [0.1, 0.1],
-      [S, S],
-      [0.5 * S, 0.5 * S],
-      [0.25 * S, 0.25 * S],
-      [0.75 * S, 0.75 * S],
-      [0.1, S],
-      [S, 0.1],
-      [0.5 * S, 0.1],
-      [0.1, 0.5 * S],
-    ]
-    const pattern = trianglify({
-      width: S,
-      height: S,
-      points,
-      seed: 'huge-range'
     })
     expect(pattern.polys.length).toBeGreaterThan(0)
   })

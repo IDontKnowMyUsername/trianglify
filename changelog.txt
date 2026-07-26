@@ -1,4 +1,5 @@
 v5 (unreleased)
+- fix packaging types (CJS declarations, worker/types conditions, @types/chroma-js as dependency), validate with publint/attw in CI, retain bundled license notices, decouple palette selection from geometry RNG, measure coverage against source (2026-07-25)
 - document exact rosette constants, date changelog entries, mark perf plan historical, fix Readme seed/canvas notes (2026-07-25)
 - stop shipping dist/types, move delaunator to devDependencies, cache pnpm in CI, add prepublishOnly guard (2026-07-25)
 - fix sphere coverage, angular wrap, validation, SVG escaping, worker edge cases; refactor tilings; test every bundle (2026-07-25)
@@ -33,6 +34,13 @@ v5 (unreleased)
 - fix test suite for upgraded dependencies (2026-03-28)
 - upgrade canvas from v2 to v3 for node 24 compatibility (2026-03-28)
 - migrate from npm to pnpm as package manager (2026-03-28)
+
+Breaking changes vs v4:
+- xColors/yColors no longer accept false — unrecognized color options throw a TypeError
+- polygon color values are lightweight { css() } objects, no longer chroma-js Color instances
+- package is ESM-first ("type": "module") with an exports map: import gets ESM, require() gets CJS, script tags keep the UMD bundles in dist/
+- node >= 18 is required
+- patterns generated for a given seed differ from v4 (new RNG implementation)
 
 v4
 - ground-up port to ES2015
