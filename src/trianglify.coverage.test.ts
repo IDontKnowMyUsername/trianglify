@@ -1117,7 +1117,7 @@ describe('option validation edge cases', () => {
   })
 
   test('rejects xColors: false at runtime', () => {
-    expect(() => trianglify({ xColors: false })).toThrow('Unrecognized color option')
+    expect(() => trianglify({ xColors: false })).toThrow('invalid xColors')
   })
 
   test('rejects custom points for tiling shapes', () => {
@@ -1204,5 +1204,180 @@ describe('colorSpace option', () => {
     const svgFor = (colorSpace: string) =>
       trianglify({ seed: 'colorspace', width: 100, height: 100, colorSpace }).toSVGTree().toString()
     expect(svgFor('rgb')).not.toEqual(svgFor('lab'))
+  })
+})
+
+describe('Point count invariant across pointGeneration modes', () => {
+  // every mode must emit the count defined by the shared grid-density
+  // contract in src/utils/geom.ts, so modes are interchangeable at a
+  // given cellSize
+  const gridCount = (w: number, h: number, c: number) =>
+    (Math.floor(w / c) + 4) * (Math.floor(h / c) + 4)
+  const modes = ['grid', 'poisson', 'bestCandidate', 'spiral', 'sphere'] as const
+  const configs = [
+    { width: 600, height: 400, cellSize: 75 },
+    { width: 200, height: 200, cellSize: 30 }
+  ]
+
+  configs.forEach(({ width, height, cellSize }) => {
+    modes.forEach(mode => {
+      test(`${mode} emits ${gridCount(width, height, cellSize)} points at ${width}x${height}/${cellSize}`, () => {
+        const pattern = trianglify({
+          width,
+          height,
+          cellSize,
+          pointGeneration: mode,
+          seed: `count-${mode}`
+        })
+        expect(pattern.points.length).toBe(gridCount(width, height, cellSize))
+      })
+    })
+  })
+})
+
+describe('Hexagon honeycomb layout', () => {
+  // Even-odd ray-casting point-in-polygon test
+  const pointInPoly = (x: number, y: number, verts: number[][]): boolean => {
+    let inside = false
+    for (let k = 0, m = verts.length - 1; k < verts.length; m = k++) {
+      const xi = verts[k]![0]!
+      const yi = verts[k]![1]!
+      const xm = verts[m]![0]!
+      const ym = verts[m]![1]!
+      if ((yi > y) !== (ym > y) && x < ((xm - xi) * (y - yi)) / (ym - yi) + xi) {
+        inside = !inside
+      }
+    }
+    return inside
+  }
+
+  // Shoelace area of a polygon
+  const polyArea = (verts: number[][]): number => {
+    let sum = 0
+    for (let k = 0; k < verts.length; k++) {
+      const v = verts[k]!
+      const w = verts[(k + 1) % verts.length]!
+      sum += v[0]! * w[1]! - w[0]! * v[1]!
+    }
+    return Math.abs(sum) / 2
+  }
+
+  const WIDTH = 200
+  const HEIGHT = 150
+  const CELL = 40
+
+  const generate = () => trianglify({
+    width: WIDTH,
+    height: HEIGHT,
+    cellSize: CELL,
+    shape: 'hexagon',
+    variance: 0,
+    seed: 'hex-honeycomb'
+  })
+
+  test('primary hexagons cover the artboard with no gaps or overlaps at variance 0', () => {
+    const pattern = generate()
+    const hexes = pattern.polys
+      .filter((p: { vertexIndices: number[] }) => p.vertexIndices.length === 6)
+      .map((p: { vertexIndices: number[] }) => p.vertexIndices.map((i: number) => pattern.points[i]))
+    // Every sample point in the visible canvas must fall inside exactly
+    // one hexagon: 0 means a gap, 2+ means an overlap. The fractional
+    // offsets keep samples away from hexagon edges and vertices.
+    const N = 13
+    const uncovered: string[] = []
+    for (let i = 0; i < N; i++) {
+      for (let j = 0; j < N; j++) {
+        const x = (i + 0.271828) * (WIDTH / N)
+        const y = (j + 0.577215) * (HEIGHT / N)
+        let count = 0
+        for (const verts of hexes) {
+          if (pointInPoly(x, y, verts)) count++
+        }
+        if (count !== 1) uncovered.push(`(${x.toFixed(1)}, ${y.toFixed(1)}) covered ${count}x`)
+      }
+    }
+    expect(uncovered).toEqual([])
+  })
+
+  test('gap-filling triangles inside the artboard are degenerate slivers at variance 0', () => {
+    const pattern = generate()
+    // genuine gap triangles exist at the honeycomb's jagged outer boundary,
+    // but that lies in the bleed zone — inside the artboard the tiling is
+    // exact, so any gap-fill triangles are floating-point slivers with
+    // essentially zero area
+    const gapArea = pattern.polys
+      .filter((p: { vertexIndices: number[] }) => p.vertexIndices.length === 3)
+      .filter((p: { centroid: { x: number; y: number } }) =>
+        p.centroid.x >= 0 && p.centroid.x <= WIDTH && p.centroid.y >= 0 && p.centroid.y <= HEIGHT)
+      .reduce((sum: number, p: { vertexIndices: number[] }) =>
+        sum + polyArea(p.vertexIndices.map((i: number) => pattern.points[i])), 0)
+    expect(gapArea).toBeLessThan(WIDTH * HEIGHT * 0.001)
+  })
+
+  test('hexagon rows use honeycomb spacing of (sqrt(3)/2) * cellSize', () => {
+    const pattern = generate()
+    const rowYs = [...new Set(
+      pattern.polys
+        .filter((p: { vertexIndices: number[] }) => p.vertexIndices.length === 6)
+        .map((p: { centroid: { y: number } }) => p.centroid.y)
+    )].sort((a, b) => (a as number) - (b as number)) as number[]
+    expect(rowYs.length).toBeGreaterThan(2)
+    const expected = CELL * Math.sqrt(3) / 2
+    for (let i = 1; i < rowYs.length; i++) {
+      expect(rowYs[i]! - rowYs[i - 1]!).toBeCloseTo(expected, 6)
+    }
+  })
+})
+
+describe('Palette and color option validation', () => {
+  test('should throw on a non-object palette', () => {
+    expect(() => trianglify({ palette: 'YlGn' })).toThrow('invalid palette')
+    expect(() => trianglify({ palette: null })).toThrow('invalid palette')
+  })
+
+  test('should throw on an empty palette object', () => {
+    expect(() => trianglify({ palette: {} })).toThrow('invalid palette')
+  })
+
+  test('should throw on an empty palette array', () => {
+    expect(() => trianglify({ palette: [] })).toThrow('invalid palette')
+  })
+
+  test('should throw on a palette entry that is not an array', () => {
+    expect(() => trianglify({ palette: { Bad: 'red' } })).toThrow('invalid palette entry')
+  })
+
+  test('should throw on a palette entry with no colors', () => {
+    expect(() => trianglify({ palette: { Bad: [] } })).toThrow('invalid palette entry')
+  })
+
+  test('should throw on non-string palette colors', () => {
+    expect(() => trianglify({ palette: { Bad: ['#ffffff', 42] } })).toThrow('invalid palette color')
+  })
+
+  test('should throw on an empty xColors array', () => {
+    expect(() => trianglify({ xColors: [] })).toThrow('invalid xColors')
+  })
+
+  test('should throw on non-string xColors entries', () => {
+    expect(() => trianglify({ xColors: ['#ffffff', 5] })).toThrow('invalid xColors entry')
+  })
+
+  test('should throw on an empty yColors array', () => {
+    expect(() => trianglify({ yColors: [] })).toThrow('invalid yColors')
+  })
+
+  test('should throw on non-string yColors entries', () => {
+    expect(() => trianglify({ yColors: [null] })).toThrow('invalid yColors entry')
+  })
+
+  test('single-entry palettes and short color arrays still work', () => {
+    const pattern = trianglify({
+      palette: { only: ['#a0a0a0', '#303030'] },
+      seed: 'single-palette',
+      width: 100,
+      height: 100
+    })
+    expect(pattern.polys.length).toBeGreaterThan(0)
   })
 })

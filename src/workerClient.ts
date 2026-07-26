@@ -25,14 +25,33 @@ interface WorkerOpts extends Omit<Partial<TrianglifyOptions>, 'colorFunction'> {
   colorFunction?: ColorFunction | ColorFunctionDescriptor
 }
 
+/**
+ * Client for running Trianglify pattern generation in a Web Worker, keeping
+ * the main thread responsive. Pair it with the prebuilt worker bundle
+ * (`dist/trianglify.worker.js`, exposed as the `trianglify/worker` export):
+ *
+ * ```js
+ * const worker = new TrianglifyWorker('path/to/trianglify.worker.js')
+ * const pattern = await worker.generate({ width: 800, height: 600 })
+ * pattern.toCanvas(myCanvas)
+ * worker.terminate()
+ * ```
+ *
+ * Built-in color functions are automatically serialized for the worker.
+ * Custom color functions cannot be transferred and fall back to the default
+ * (interpolateLinear).
+ */
 export default class TrianglifyWorker {
   private _worker: Worker
   private _nextId: number
   private _pending: Map<number, PendingHandler>
   private _terminated: boolean
 
-  // Accepts a script URL/path, or a pre-constructed Worker so bundler idioms
-  // like new Worker(new URL('trianglify/worker', import.meta.url)) work
+  /**
+   * @param worker - a worker script URL/path (combined with `workerOptions`),
+   *   or a pre-constructed `Worker` so bundler idioms like
+   *   `new Worker(new URL('trianglify/worker', import.meta.url))` work
+   */
   constructor (worker: string | URL | Worker, workerOptions?: WorkerOptions) {
     this._worker = typeof Worker !== 'undefined' && worker instanceof Worker
       ? worker
@@ -59,6 +78,12 @@ export default class TrianglifyWorker {
     }
   }
 
+  /**
+   * Generate a pattern in the worker. Accepts the same options as the
+   * `trianglify()` function and resolves to a renderable `Pattern`. Pass an
+   * `AbortSignal` to cancel a pending generation — the promise then rejects
+   * with the signal's abort reason (an `AbortError` by default).
+   */
   generate (opts: Partial<TrianglifyOptions> = {}, { signal }: { signal?: AbortSignal } = {}): Promise<Pattern> {
     return new Promise((resolve, reject) => {
       if (this._terminated) {
@@ -115,6 +140,10 @@ export default class TrianglifyWorker {
     })
   }
 
+  /**
+   * Terminate the underlying Web Worker and reject any pending `generate`
+   * promises. Further `generate` calls reject with an error.
+   */
   terminate (): void {
     this._terminated = true
     this._worker.terminate()

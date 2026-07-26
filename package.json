@@ -68,6 +68,7 @@
   "files": [
     "dist/",
     "Readme.md",
+    "MIGRATING.md",
     "changelog.txt",
     "LICENSE"
   ],
@@ -97,7 +98,8 @@
     ],
     "coveragePathIgnorePatterns": [
       "node_modules",
-      "\\.test\\.ts$"
+      "\\.test\\.ts$",
+      "dist/trianglify\\.bundle"
     ],
     "coverageThreshold": {
       "./src/": {

@@ -1,47 +1,54 @@
-v5 (unreleased)
-- validate all options, clear destSVG on re-render, accept Worker instances in TrianglifyWorker, harden worker messages, refactor generation pipelines, add pixel/HiDPI/type-surface tests, stale-dist guard, type-aware lint, publish workflow, module-format docs and worker example (2026-07-25)
-- fix packaging types (CJS declarations, worker/types conditions, @types/chroma-js as dependency), validate with publint/attw in CI, retain bundled license notices, decouple palette selection from geometry RNG, measure coverage against source (2026-07-25)
-- document exact rosette constants, date changelog entries, mark perf plan historical, fix Readme seed/canvas notes (2026-07-25)
-- stop shipping dist/types, move delaunator to devDependencies, cache pnpm in CI, add prepublishOnly guard (2026-07-25)
-- fix sphere coverage, angular wrap, validation, SVG escaping, worker edge cases; refactor tilings; test every bundle (2026-07-25)
-- fix falsy seed determinism, guard generate() after terminate(), add browser-safe ESM entry, execute worker bundle in tests (2026-07-25)
-- add gap-free tiling tests, worker client unit tests, and coverage thresholds; document worker API and remove dead code (2026-07-24)
-- add exact nonconvex rosette tiling analysis doc (2026-07-24)
-- solve nonconvex rosette tiling exactly and remove empirical lattice corrections (2026-07-24)
-- copy caller-supplied points to prevent mutating input arrays (2026-07-24)
-- add empirical lattice corrections to nonconvex rosette tiling (2026-07-24)
-- fix CI typecheck/lint errors, add pentagonal tiling tests, document v5 options (2026-07-24)
-- apply reference image geometry to generateNonconvexTiling (2026-04-03)
-- fix nonconvex rosette angles and edge ratios from reference image (2026-04-03)
-- replace pentagonal tilings with rosette constructions (2026-04-02)
-- add shape/tiling system and fix Cairo pentagonal tiling lattice vectors (2026-03-30)
-- increase unit test coverage from 60% to 96% on CJS bundle (2026-03-29)
-- add pointGeneration option with Poisson-disc and best-candidate sampling algorithms (issue #150) (2026-03-29)
-- optimize rendering pipeline: cache CSS colors and reduce per-polygon overhead (2026-03-29)
-- clean up dead code, unused deps, and leaked internal types (2026-03-28)
-- modernize: improve type safety, fix docs, add AbortController support (2026-03-28)
-- improve type safety: fix palette union type, add RenderOpts interface, eliminate unsafe type casts (2026-03-28)
-- add engines field (node >=18) and expose worker bundle in package.json exports (2026-03-28)
-- migrate source and tests from JavaScript to TypeScript with full type annotations (2026-03-28)
-- replace Babel with TypeScript compiler, Standard.js with ESLint + typescript-eslint (2026-03-28)
-- auto-generate type declarations from source (replaces hand-maintained .d.ts) (2026-03-28)
-- modernize JS idioms (var→const/let, template literals, Array.from), add sideEffects field, enable source maps (2026-03-28)
-- modernize tooling, add ESM distribution and TypeScript definitions (2026-03-28)
-- add input validation for cellSize and variance options (2026-03-28)
-- add Web Worker support for off-main-thread pattern generation (2026-03-28)
-- make canvas an optional peer dependency for browser/SVG-only usage (issue #136) (2026-03-28)
-- add strokeColor option for custom stroke colors (thanks @SmolSoftBoi, upstream PR #157) (2026-03-28)
-- add coverage tests and exclude bundle from coverage reporting (2026-03-28)
-- fix test suite for upgraded dependencies (2026-03-28)
-- upgrade canvas from v2 to v3 for node 24 compatibility (2026-03-28)
-- migrate from npm to pnpm as package manager (2026-03-28)
+v5.0.0 (unreleased)
+
+Trianglify v5 is a ground-up modernization of the library. See MIGRATING.md
+for the v4 → v5 upgrade checklist.
 
 Breaking changes vs v4:
-- xColors/yColors no longer accept false — unrecognized color options throw a TypeError
-- polygon color values are lightweight { css() } objects, no longer chroma-js Color instances
-- package is ESM-first ("type": "module") with an exports map: import gets ESM, require() gets CJS, script tags keep the UMD bundles in dist/
-- node >= 18 is required
-- patterns generated for a given seed differ from v4 (new RNG implementation)
+- package is ESM-first ("type": "module") with an exports map: import gets
+  ESM, require() gets CJS, script tags keep the UMD bundles in dist/;
+  node >= 18 is required
+- options are strictly validated: unknown option keys and malformed values
+  (including the v4 xColors/yColors: false idiom, empty color arrays, and
+  empty or malformed palettes) throw a TypeError instead of being silently
+  ignored
+- polygon color values are lightweight { css() } objects, no longer chroma-js
+  Color instances
+- patterns generated for a given seed differ from v4 (new RNG with separate
+  seeded streams for geometry, palette selection, and color noise — changing
+  color options can no longer change the geometry)
+
+New features:
+- shape option: regular polygons (pentagon, hexagon, heptagon, octagon),
+  circles, and three exact pentagonal tilings (pentagon-cairo,
+  pentagon-convex, pentagon-nonconvex) with closed-form geometry
+  (docs/nonconvex-rosette-analysis.md); hexagons on the default grid layout
+  form an exact gap-free honeycomb
+- pointGeneration option: grid (default), poisson (Bridson), bestCandidate
+  (Mitchell), spiral (Fermat/sunflower), and sphere layouts — every mode
+  emits the same point count at a given cellSize, so modes are drop-in
+  interchangeable
+- Web Worker support: TrianglifyWorker client (accepts a script URL or a
+  pre-constructed Worker) with AbortSignal cancellation, a prebuilt worker
+  bundle exposed as the trianglify/worker export, and automatic serialization
+  of built-in color functions
+- pattern serialization: pattern.toData() / Pattern.fromData(data) for JSON-
+  and postMessage-safe caching and transfer; fromData structurally validates
+  untrusted data
+- new options: strokeColor, spiralDirection, spiralRatio; new built-in color
+  functions radial() and angular()
+- TypeScript throughout: bundled type definitions for ESM and CJS consumers,
+  JSDoc on the public API surface, importable option/result types
+- rendering improvements: re-rendering into an existing destSVG replaces its
+  content instead of appending, SVG attribute values are escaped, antialiased
+  canvas gap handling retained from v4, canvas is an optional peer dependency
+  (browser/SVG-only usage installs nothing extra)
+
+Quality & tooling:
+- exact-geometry certification tests for all tilings and the hexagon
+  honeycomb, per-bundle output parity tests, real-pixel canvas and HiDPI
+  tests, compile-time verification of the published type declarations,
+  publint/arethetypeswrong packaging validation, and npm provenance
+  publishing
 
 v4
 - ground-up port to ES2015

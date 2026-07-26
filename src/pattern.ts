@@ -61,9 +61,70 @@ const sNode: Serializer<SVGTreeNode> = (tagName, attrs = {}, children?) => ({
   toString: () => `<${tagName} ${serializeAttrs(attrs)}>${children ? children.join('') : ''}</${tagName}>`
 })
 
+// Pattern.fromData accepts data across trust boundaries (postMessage, JSON
+// from caches) — validate its shape so malformed input fails fast with a
+// clear error instead of crashing mid-render
+const fail = (msg: string): never => {
+  throw TypeError(`invalid pattern data: ${msg}`)
+}
+
+const isFiniteNumber = (v: unknown): v is number => typeof v === 'number' && isFinite(v)
+
+const validatePatternData = (data: PatternData): void => {
+  if (typeof data !== 'object' || data === null) fail('expected an object')
+  const { points, polys, opts } = data
+
+  if (!Array.isArray(points)) fail('points must be an array')
+  for (const p of points) {
+    if (!Array.isArray(p) || !isFiniteNumber(p[0]) || !isFiniteNumber(p[1])) {
+      fail(`points entries must be [x, y] pairs of finite numbers, got ${JSON.stringify(p)}`)
+    }
+  }
+
+  if (!Array.isArray(polys)) fail('polys must be an array')
+  for (const poly of polys) {
+    if (typeof poly !== 'object' || poly === null) fail(`polys entries must be objects, got ${JSON.stringify(poly)}`)
+    if (!Array.isArray(poly.vertexIndices)) fail('poly.vertexIndices must be an array')
+    for (const vi of poly.vertexIndices) {
+      if (!Number.isInteger(vi) || vi < 0 || vi >= points.length) {
+        fail(`poly.vertexIndices entry ${JSON.stringify(vi)} is not an index into points (length ${points.length})`)
+      }
+    }
+    if (typeof poly.centroid !== 'object' || poly.centroid === null || !isFiniteNumber(poly.centroid.x) || !isFiniteNumber(poly.centroid.y)) {
+      fail(`poly.centroid must be {x, y} with finite numbers, got ${JSON.stringify(poly.centroid)}`)
+    }
+    if (typeof poly.color !== 'string') {
+      fail(`poly.color must be a CSS color string, got ${JSON.stringify(poly.color)}`)
+    }
+    if (poly.radius != null && (!isFiniteNumber(poly.radius) || poly.radius < 0)) {
+      fail(`poly.radius must be a non-negative finite number, got ${JSON.stringify(poly.radius)}`)
+    }
+    if (poly.vertexIndices.length === 0 && poly.radius == null) {
+      fail('a poly with no vertexIndices must have a radius (circle)')
+    }
+  }
+
+  if (typeof opts !== 'object' || opts === null) fail('opts must be an object')
+  if (!isFiniteNumber(opts.width) || opts.width <= 0) fail(`opts.width must be a positive finite number, got ${JSON.stringify(opts.width)}`)
+  if (!isFiniteNumber(opts.height) || opts.height <= 0) fail(`opts.height must be a positive finite number, got ${JSON.stringify(opts.height)}`)
+  if (typeof opts.fill !== 'boolean') fail(`opts.fill must be a boolean, got ${JSON.stringify(opts.fill)}`)
+  if (!isFiniteNumber(opts.strokeWidth) || opts.strokeWidth < 0) fail(`opts.strokeWidth must be a non-negative finite number, got ${JSON.stringify(opts.strokeWidth)}`)
+  if (opts.strokeColor !== null && typeof opts.strokeColor !== 'string') fail(`opts.strokeColor must be a string or null, got ${JSON.stringify(opts.strokeColor)}`)
+}
+
+/**
+ * A generated Trianglify pattern: the point layout, the colored polygons
+ * built on it, and the options used to generate them, together with
+ * rendering methods for SVG ({@link toSVG}, {@link toSVGTree}) and canvas
+ * ({@link toCanvas}), plus serialization via {@link toData} /
+ * {@link Pattern.fromData}.
+ */
 export default class Pattern {
+  /** The pseudo-random point layout the pattern geometry is built on. */
   points: Point[]
+  /** The colored polygons that make up the pattern. */
   polys: Polygon[]
+  /** The options the pattern was generated with (render options only for patterns restored via {@link Pattern.fromData}). */
   opts: TrianglifyOptions | RenderOpts
 
   constructor (points: Point[], polys: Polygon[], opts: TrianglifyOptions | RenderOpts) {
@@ -72,8 +133,12 @@ export default class Pattern {
     this.opts = opts
   }
 
-  // Serialize the pattern to a plain object suitable for postMessage/JSON.
-  // Chroma color objects are converted to CSS strings.
+  /**
+   * Serialize the pattern to a plain object that survives
+   * `JSON.stringify`/`postMessage` (colors become CSS strings). Restore it
+   * with {@link Pattern.fromData}. Useful for caching patterns and for
+   * transferring them out of a Web Worker.
+   */
   toData (): PatternData {
     const { width, height, fill, strokeWidth, strokeColor, shape } = this.opts
     return {
@@ -88,9 +153,15 @@ export default class Pattern {
     }
   }
 
-  // Reconstruct a Pattern from serialized data (as produced by toData).
-  // The returned pattern supports toCanvas() and toSVG() rendering.
+  /**
+   * Reconstruct a Pattern from serialized data (as produced by
+   * {@link toData}). The returned pattern supports `toCanvas()` and
+   * `toSVG()` rendering. Malformed data throws a TypeError — the data often
+   * arrives from a postMessage boundary or a JSON cache, so it is validated
+   * structurally rather than trusted.
+   */
   static fromData (data: PatternData): Pattern {
+    validatePatternData(data)
     const polys: Polygon[] = data.polys.map(poly => ({
       vertexIndices: poly.vertexIndices,
       centroid: poly.centroid,
@@ -165,12 +236,21 @@ export default class Pattern {
     return svg
   }
 
+  /**
+   * Render the pattern to a lightweight SVG node tree whose `toString()`
+   * produces a valid SVG string. Works in every environment; in Node this is
+   * what {@link toSVG} returns.
+   */
   toSVGTree (svgOpts?: SVGOptions): SVGTreeNode {
     return this._toSVG(sNode, null, svgOpts)
   }
 
-  // In browsers this returns an SVGElement (rendered into destSVG when
-  // given); in Node it ignores destSVG and returns a plain SVGTreeNode.
+  /**
+   * Render the pattern to SVG. In browsers this returns an `SVGElement` —
+   * rendered into `destSVG` when given, replacing its previous content; in
+   * Node it ignores `destSVG` and returns a plain {@link SVGTreeNode}
+   * (serialize it with `toString()`).
+   */
   toSVG (destSVG: SVGElement, svgOpts?: SVGOptions): SVGElement
   toSVG (destSVG?: SVGElement | null, svgOpts?: SVGOptions): SVGElement | SVGTreeNode
   toSVG (destSVG?: SVGElement | null, svgOpts?: SVGOptions): SVGElement | SVGTreeNode {
@@ -179,6 +259,12 @@ export default class Pattern {
       : this.toSVGTree(svgOpts)
   }
 
+  /**
+   * Render the pattern to a canvas — into `destCanvas` when given, otherwise
+   * into a newly created one. In browsers the canvas is scaled for high-DPI
+   * displays by default (see {@link CanvasOptions}). In Node this requires
+   * the optional `canvas` package and renders at exactly `width` × `height`.
+   */
   toCanvas (destCanvas?: HTMLCanvasElement, _canvasOpts: CanvasOptions = {}): HTMLCanvasElement {
     const defaultCanvasOptions = {
       scaling: isBrowser ? 'auto' as const : false as const,

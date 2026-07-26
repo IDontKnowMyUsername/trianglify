@@ -14,9 +14,11 @@ import type { ColorFunction, ColorFunctionParams } from '../types'
 // the snippet above gives you a trianglify pattern with a 20% random
 // jitter applied to the x and y gradient scales
 
-// Linear interpolation of two gradients, one for the x and one for the y
-// axis. This is the default Trianglify color function.
-// The bias parameter controls how prevalent the y axis is versus the x axis
+/**
+ * Linear interpolation of two gradients, one for the x and one for the y
+ * axis. This is the default Trianglify color function.
+ * @param bias - how prevalent the y axis is versus the x axis (0–1)
+ */
 export const interpolateLinear = (bias = 0.5): ColorFunction => {
   const fn: ColorFunction = ({ xPercent, yPercent, xScale, yScale, opts }: ColorFunctionParams) =>
     chroma.mix(xScale(xPercent), yScale(yPercent), bias, opts.colorSpace)
@@ -24,8 +26,11 @@ export const interpolateLinear = (bias = 0.5): ColorFunction => {
   return fn
 }
 
-// Give the pattern a 'sparkle' effect by introducing random noise into the
-// x and y gradients, making for higher contrast between cells.
+/**
+ * Give the pattern a 'sparkle' effect by introducing random noise into the
+ * x and y gradients, making for higher contrast between cells.
+ * @param jitterFactor - amount of noise applied to the gradient positions
+ */
 export const sparkle = (jitterFactor = 0.15): ColorFunction => {
   const fn: ColorFunction = ({ xPercent, yPercent, xScale, yScale, opts, random }: ColorFunctionParams) => {
     const jitter = () => (random() - 0.5) * jitterFactor
@@ -37,9 +42,11 @@ export const sparkle = (jitterFactor = 0.15): ColorFunction => {
   return fn
 }
 
-// This is similar to the sparkle effect, but instead of swapping colors around
-// it darkens cells by a random amount. The shadowIntensity parameter controls
-// how dark the darkest shadows are.
+/**
+ * Similar to the sparkle effect, but instead of swapping colors around it
+ * darkens cells by a random amount.
+ * @param shadowIntensity - how dark the darkest shadows are
+ */
 export const shadows = (shadowIntensity = 0.8): ColorFunction => {
   const fn: ColorFunction = ({ xPercent, yPercent, xScale, yScale, opts, random }: ColorFunctionParams) => {
     const a = xScale(xPercent)
@@ -51,9 +58,12 @@ export const shadows = (shadowIntensity = 0.8): ColorFunction => {
   return fn
 }
 
-// Map color based on distance from center. Pairs well with spiral and
-// sphere layouts. The falloff parameter controls the curve of the gradient
-// (1 = linear, <1 = concentrates color near center, >1 = concentrates at edges).
+/**
+ * Map color based on distance from center. Pairs well with spiral and
+ * sphere layouts.
+ * @param falloff - curve of the gradient (1 = linear, <1 concentrates color
+ *   near the center, >1 concentrates it at the edges)
+ */
 export const radial = (falloff = 1): ColorFunction => {
   const fn: ColorFunction = ({ centroid, xScale, opts }: ColorFunctionParams) => {
     const cx = opts.width / 2
@@ -69,8 +79,10 @@ export const radial = (falloff = 1): ColorFunction => {
   return fn
 }
 
-// Map color based on angle from center. Pairs well with spiral layouts.
-// The offset parameter rotates the gradient (in radians).
+/**
+ * Map color based on angle from center. Pairs well with spiral layouts.
+ * @param offset - rotates the gradient (in radians)
+ */
 export const angular = (offset = 0): ColorFunction => {
   const fn: ColorFunction = ({ centroid, xScale, opts }: ColorFunctionParams) => {
     const cx = opts.width / 2

@@ -23,8 +23,9 @@ import * as colorFunctions from './utils/colorFunctions'
 import { generateRegularPolygon, getSidesForShape } from './utils/shapes'
 import { generateTiling } from './utils/tilings'
 import type { TrianglifyOptions, Polygon, Point, CSSColor, Centroid, Shape } from './types'
-export type { TrianglifyOptions, RenderOpts, ColorFunctionParams, ColorFunction, ColorFunctionDescriptor, CSSColor, Polygon, PatternData, SVGTreeNode, SVGOptions, CanvasOptions, Shape } from './types'
+export type { TrianglifyOptions, RenderOpts, ColorFunctionParams, ColorFunction, ColorFunctionDescriptor, CSSColor, Polygon, PatternData, SVGTreeNode, SVGOptions, CanvasOptions, Shape, Point, Centroid } from './types'
 
+/** The frozen defaults for every option — see {@link TrianglifyOptions} for what each one does. */
 const defaultOptions: TrianglifyOptions = Object.freeze({
   width: 600,
   height: 400,
@@ -78,6 +79,35 @@ const validateOptions = (_opts: Partial<TrianglifyOptions>): TrianglifyOptions =
   if (typeof opts.palette !== 'object' || opts.palette === null) {
     throw TypeError('invalid palette: expected a name→colors map or an array of color arrays')
   }
+  const paletteEntries = Array.isArray(opts.palette) ? opts.palette : Object.values(opts.palette)
+  if (paletteEntries.length === 0) {
+    throw TypeError('invalid palette: expected at least one color array')
+  }
+  for (const colors of paletteEntries) {
+    if (!Array.isArray(colors) || colors.length === 0) {
+      throw TypeError(`invalid palette entry: ${JSON.stringify(colors)} (expected a non-empty array of CSS color strings)`)
+    }
+    for (const color of colors) {
+      if (typeof color !== 'string') {
+        throw TypeError(`invalid palette color: ${JSON.stringify(color)} (expected a CSS color string)`)
+      }
+    }
+  }
+  // string values ('random', 'match', palette names) are resolved against
+  // the palette later, in processColorOpts
+  const validateColors = (value: string | string[], name: string): void => {
+    if (typeof value === 'string') return
+    if (!Array.isArray(value) || value.length === 0) {
+      throw TypeError(`invalid ${name}: expected a non-empty color array, a palette name, or 'random'`)
+    }
+    for (const color of value) {
+      if (typeof color !== 'string') {
+        throw TypeError(`invalid ${name} entry: ${JSON.stringify(color)} (expected a CSS color string)`)
+      }
+    }
+  }
+  validateColors(opts.xColors, 'xColors')
+  validateColors(opts.yColors, 'yColors')
   if (!validColorSpaces.includes(opts.colorSpace)) {
     throw TypeError(`invalid colorSpace: ${opts.colorSpace}`)
   }
@@ -226,14 +256,38 @@ const buildShapePolys = (points: Point[], shape: Shape, cellSize: number, colorP
   // Phase 3: Delaunay-triangulate all polygon vertices to find gap-filling
   // triangles. Interior triangles (all 3 vertices from the same shape) are
   // skipped; the remaining triangles fill the gaps between primary shapes.
+  //
+  // Ownership is tested by vertex *position*, not index: when shapes tile
+  // exactly (e.g. the hexagon honeycomb at variance 0), adjacent shapes
+  // carry coincident copies of shared corners and Delaunator references
+  // just one copy — index ownership alone would misclassify shape
+  // interiors as gaps. A triangle whose three corner positions share any
+  // owner lies inside that (convex) shape, so skipping it is always safe.
+  const posKey = (p: Point): string => `${Math.round(p[0] * 1e6)},${Math.round(p[1] * 1e6)}`
+  const posOwners = new Map<string, number[]>()
+  for (let v = 0; v < allVerts.length; v++) {
+    const key = posKey(allVerts[v]!)
+    const owners = posOwners.get(key)
+    if (owners) {
+      owners.push(vertexOwner[v]!)
+    } else {
+      posOwners.set(key, [vertexOwner[v]!])
+    }
+  }
+  const shareOwner = (a: number, b: number, c: number): boolean => {
+    const ownersA = posOwners.get(posKey(allVerts[a]!))!
+    const ownersB = posOwners.get(posKey(allVerts[b]!))!
+    const ownersC = posOwners.get(posKey(allVerts[c]!))!
+    return ownersA.some(o => ownersB.includes(o) && ownersC.includes(o))
+  }
+
   const gapIndices = Delaunator.from(allVerts).triangles
   for (let i = 0; i < gapIndices.length; i += 3) {
     const a = gapIndices[i]!
     const b = gapIndices[i + 1]!
     const c = gapIndices[i + 2]!
 
-    // Skip interior triangles (all vertices belong to the same shape)
-    if (vertexOwner[a] === vertexOwner[b] && vertexOwner[b] === vertexOwner[c]) {
+    if (shareOwner(a, b, c)) {
       continue
     }
 
@@ -246,13 +300,18 @@ const buildShapePolys = (points: Point[], shape: Shape, cellSize: number, colorP
   return polys
 }
 
-// This function does the "core" render-independent work:
-//
-// 1. Parse and munge options
-// 2. Setup cell geometry
-// 3. Generate random points within cell geometry
-// 4. Use the Delaunator library to run the triangulation
-// 5. Do color interpolation to establish the fundamental coloring of the shapes
+/**
+ * Generate a Trianglify pattern.
+ *
+ * Does the render-independent work: validates options, generates the
+ * pseudo-random point layout, builds the shape geometry (Delaunay
+ * triangulation, regular polygons, or pentagonal tilings), and colors each
+ * polygon. The returned {@link Pattern} renders via `toSVG()`,
+ * `toSVGTree()`, or `toCanvas()`.
+ *
+ * @param _opts - options overriding {@link defaultOptions}; unrecognized or
+ *   malformed options throw a TypeError
+ */
 function trianglify (_opts: Partial<TrianglifyOptions> = {}): Pattern {
   const opts = validateOptions(_opts)
 
@@ -304,15 +363,6 @@ function trianglify (_opts: Partial<TrianglifyOptions> = {}): Pattern {
   let points: Point[] = isTilingShape
     ? []
     : opts.points ? opts.points.slice() : getPoints(opts, rand)
-
-  // For hexagons with grid layout, offset alternating rows for honeycomb tiling
-  if (opts.shape === 'hexagon' && opts.pointGeneration === 'grid' && !opts.points) {
-    const { colCount } = getGridDensity(opts.width, opts.height, opts.cellSize)
-    points = points.map((p, i) => {
-      const row = Math.floor(i / colCount)
-      return row % 2 === 1 ? [p[0] + opts.cellSize / 2, p[1]] : p
-    })
-  }
 
   // use a different (salted) randomizer for the color function so that
   // swapping out color functions doesn't change the pattern geometry itself
@@ -369,7 +419,10 @@ const getPoints = (opts: TrianglifyOptions, random: () => number): Point[] => {
       return spherePoints(width, height, cellSize, variance, random)
     case 'grid':
     default:
-      return getGridPoints(width, height, cellSize, variance, random)
+      // hexagons need honeycomb row spacing, not the square grid
+      return opts.shape === 'hexagon'
+        ? getHexGridPoints(width, height, cellSize, variance, random)
+        : getGridPoints(width, height, cellSize, variance, random)
   }
 }
 
@@ -406,6 +459,42 @@ const getGridPoints = (
   })
 
   return points
+}
+
+// Honeycomb lattice for hexagon grids. generateRegularPolygon places a
+// vertex at the top (pointy-top), so hexagons are cellSize wide across the
+// flats with circumradius R = cellSize/√3. A gap-free honeycomb then needs
+// columns cellSize apart, rows 1.5·R = (√3/2)·cellSize apart, and odd rows
+// shifted right by cellSize/2.
+const getHexGridPoints = (
+  width: number,
+  height: number,
+  cellSize: number,
+  variance: number,
+  random: () => number
+): Point[] => {
+  const rowSpacing = cellSize * Math.sqrt(3) / 2
+  const colCount = Math.floor(width / cellSize) + 4
+  const rowCount = Math.floor(height / rowSpacing) + 4
+
+  const bleedX = ((colCount * cellSize) - width) / 2
+  const bleedY = ((rowCount * rowSpacing) - height) / 2
+
+  const cellJitter = cellSize * variance
+  const getJitter = () => (random() - 0.5) * cellJitter
+
+  const halfCell = cellSize / 2
+
+  return Array.from({ length: colCount * rowCount }, (_, i): Point => {
+    const col = i % colCount
+    const row = Math.floor(i / colCount)
+    const rowOffset = row % 2 === 1 ? halfCell : 0
+
+    return [
+      -bleedX + col * cellSize + halfCell + rowOffset + getJitter(),
+      -bleedY + row * rowSpacing + rowSpacing / 2 + getJitter()
+    ]
+  })
 }
 
 export default Object.assign(trianglify, {

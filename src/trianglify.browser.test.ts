@@ -3,13 +3,13 @@
  */
 export {}
 
-// Integration tests against the built browser bundle.
-// Tests import from dist/ to validate the public API.
-
-// pull in the transpiled, browser-bundle version of trianglify.
-// this is needed so that we get the browser-targeted Canvas shim, and
-// NOT the node library
-const trianglify = require('../dist/trianglify.bundle.debug.js')
+// Integration tests for browser (DOM) behavior, run under jsdom.
+// Tests import from dist/ to validate the public API. Environment detection
+// is runtime in v5, so the CJS bundle exercises the same browser code paths
+// — and keeping every in-process suite on the same bundle keeps the V8
+// coverage remap consistent (merging remaps of different bundles corrupts
+// the merged report). The UMD bundles are artifact-tested in bundles.test.ts.
+const trianglify = require('../dist/trianglify.cjs')
 const Pattern = trianglify.Pattern
 
 describe('Public API', () => {

@@ -6,8 +6,10 @@ export {}
 // Tests for Pattern serialization/deserialization and color function
 // descriptors — the data layer that Web Worker support is built on.
 // The worker bundle itself is exercised in src/worker.bundle.test.ts.
+// Loads the CJS bundle like every other in-process suite so the V8
+// coverage remap stays consistent (see trianglify.browser.test.ts).
 
-const trianglify = require('../dist/trianglify.bundle.debug.js')
+const trianglify = require('../dist/trianglify.cjs')
 const Pattern = trianglify.Pattern
 
 interface SerializedPoly {
@@ -221,5 +223,80 @@ describe('TrianglifyWorker export', () => {
   test('is exported from the main module', () => {
     expect(trianglify.TrianglifyWorker).toBeDefined()
     expect(typeof trianglify.TrianglifyWorker).toBe('function')
+  })
+})
+
+describe('Pattern.fromData() validation', () => {
+  // fromData sits on a trust boundary (postMessage results, JSON caches):
+  // malformed data must fail fast with a clear TypeError instead of
+  // crashing later inside a render call
+  const validData = () =>
+    trianglify({ seed: 'fromData-validation', width: 100, height: 100 }).toData()
+
+  test('rejects non-object data', () => {
+    expect(() => Pattern.fromData(null)).toThrow('invalid pattern data')
+    expect(() => Pattern.fromData('nope')).toThrow('invalid pattern data')
+  })
+
+  test('rejects non-object polys entries', () => {
+    const data = validData()
+    data.polys[0] = 'nope'
+    expect(() => Pattern.fromData(data)).toThrow('polys entries must be objects')
+  })
+
+  test('rejects out-of-range vertex indices', () => {
+    const data = validData()
+    data.polys[0].vertexIndices = [0, 1, data.points.length]
+    expect(() => Pattern.fromData(data)).toThrow('not an index into points')
+  })
+
+  test('rejects non-integer vertex indices', () => {
+    const data = validData()
+    data.polys[0].vertexIndices = [0, 1, 1.5]
+    expect(() => Pattern.fromData(data)).toThrow('not an index into points')
+  })
+
+  test('rejects malformed points entries', () => {
+    const data = validData()
+    data.points[0] = ['x', 0]
+    expect(() => Pattern.fromData(data)).toThrow('invalid pattern data')
+  })
+
+  test('rejects non-string poly colors', () => {
+    const data = validData()
+    data.polys[0].color = 42
+    expect(() => Pattern.fromData(data)).toThrow('poly.color')
+  })
+
+  test('rejects a vertexless poly without a radius', () => {
+    const data = validData()
+    data.polys[0].vertexIndices = []
+    expect(() => Pattern.fromData(data)).toThrow('radius')
+  })
+
+  test('rejects malformed centroids', () => {
+    const data = validData()
+    data.polys[0].centroid = { x: NaN, y: 0 }
+    expect(() => Pattern.fromData(data)).toThrow('centroid')
+  })
+
+  test('rejects malformed render opts', () => {
+    const badWidth = validData()
+    badWidth.opts.width = -5
+    expect(() => Pattern.fromData(badWidth)).toThrow('opts.width')
+
+    const badFill = validData()
+    badFill.opts.fill = 'yes'
+    expect(() => Pattern.fromData(badFill)).toThrow('opts.fill')
+
+    const badStroke = validData()
+    badStroke.opts.strokeColor = 7
+    expect(() => Pattern.fromData(badStroke)).toThrow('opts.strokeColor')
+  })
+
+  test('accepts valid circle-pattern data round-trips', () => {
+    const pattern = trianglify({ seed: 'circle-data', width: 100, height: 100, cellSize: 25, shape: 'circle' })
+    const restored = Pattern.fromData(pattern.toData())
+    expect(restored.toSVGTree().toString()).toBe(pattern.toSVGTree().toString())
   })
 })

@@ -17,21 +17,26 @@ const cjs = require('../dist/trianglify.cjs')
 const SEED_OPTS = { seed: 'bundle-parity', width: 120, height: 90 }
 const expectedSVG = cjs(SEED_OPTS).toSVGTree().toString()
 
-describe('minified UMD bundle', () => {
-  const umd = require('../dist/trianglify.bundle.js')
+// Both UMD variants are excluded from coverage collection (see
+// coveragePathIgnorePatterns): remapping several bundles of the same
+// sources and merging the results corrupts the coverage report.
+for (const [label, file] of [['minified', 'trianglify.bundle.js'], ['debug', 'trianglify.bundle.debug.js']] as const) {
+  describe(`${label} UMD bundle`, () => {
+    const umd = require(`../dist/${file}`)
 
-  test('exposes the same API surface as the CJS bundle', () => {
-    expect(typeof umd).toBe('function')
-    expect(umd.colorFunctions).toBeDefined()
-    expect(umd.Pattern).toBeDefined()
-    expect(umd.TrianglifyWorker).toBeDefined()
-    expect(umd.defaultOptions).toBeDefined()
-  })
+    test('exposes the same API surface as the CJS bundle', () => {
+      expect(typeof umd).toBe('function')
+      expect(umd.colorFunctions).toBeDefined()
+      expect(umd.Pattern).toBeDefined()
+      expect(umd.TrianglifyWorker).toBeDefined()
+      expect(umd.defaultOptions).toBeDefined()
+    })
 
-  test('produces output identical to the CJS bundle', () => {
-    expect(umd(SEED_OPTS).toSVGTree().toString()).toEqual(expectedSVG)
+    test('produces output identical to the CJS bundle', () => {
+      expect(umd(SEED_OPTS).toSVGTree().toString()).toEqual(expectedSVG)
+    })
   })
-})
+}
 
 describe('ESM bundles (real Node import)', () => {
   const importAndRender = (file: string): string => {

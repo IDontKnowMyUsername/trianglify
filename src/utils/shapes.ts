@@ -5,7 +5,8 @@ import type { Point, Shape } from '../types'
  * @param center - center [x, y] of the polygon
  * @param sides - number of sides
  * @param circumradius - distance from center to each vertex
- * @param rotationOffset - rotation in radians (default: flat-top orientation)
+ * @param rotationOffset - rotation in radians (default: vertex-at-top, i.e.
+ *   "pointy-top" orientation — the first vertex sits directly above center)
  * @returns array of [x, y] vertices in winding order
  */
 export function generateRegularPolygon(

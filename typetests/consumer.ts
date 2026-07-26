@@ -8,7 +8,9 @@ import trianglify, {
   type PatternData,
   type ColorFunctionDescriptor,
   type Polygon,
-  type Shape
+  type Shape,
+  type Point,
+  type Centroid
 } from 'trianglify'
 import 'trianglify/worker'
 
@@ -17,6 +19,12 @@ const pattern = trianglify(opts)
 
 const polys: Polygon[] = pattern.polys
 const css: string = polys[0]!.color.css()
+// Point and Centroid are named in public signatures (custom points,
+// color-function params) and must be importable
+const points: Point[] = pattern.points
+const centroid: Centroid = polys[0]!.centroid
+void points
+void centroid
 
 const data: PatternData = pattern.toData()
 const restored = trianglify.Pattern.fromData(data)

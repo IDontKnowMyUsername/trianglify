@@ -17,7 +17,11 @@
     "isolatedModules": true,
     "noEmit": true,
     "rootDir": "./src",
-    "sourceMap": true
+    "sourceMap": true,
+    // embed original TS text in emitted source maps — without it the dist
+    // maps carry sourcesContent: null for src files, and V8 coverage remap
+    // (v8-to-istanbul) silently degenerates to one statement per file
+    "inlineSources": true
   },
   "include": ["src/**/*.ts"],
   "exclude": ["src/**/*.test.ts", "src/__snapshots__", "node_modules"]

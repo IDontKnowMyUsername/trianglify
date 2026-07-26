@@ -23,8 +23,11 @@ class MockWorker {
   posted: PostedMessage[] = []
   terminated = false
 
-  constructor (url: string) {
+  options: WorkerOptions | undefined
+
+  constructor (url: string, options?: WorkerOptions) {
     this.url = url
+    this.options = options
     MockWorker.instances.push(this)
   }
 
@@ -67,6 +70,25 @@ describe('construction', () => {
   test('spawns a Worker with the given URL', () => {
     expect(MockWorker.instances).toHaveLength(1)
     expect(mock.url).toBe('fake/worker.js')
+  })
+
+  test('passes workerOptions through to the Worker constructor', () => {
+    void new TrianglifyWorker('modular/worker.js', { type: 'module', name: 'tri' })
+    const spawned = MockWorker.instances[1]!
+    expect(spawned.url).toBe('modular/worker.js')
+    expect(spawned.options).toEqual({ type: 'module', name: 'tri' })
+  })
+
+  test('accepts a pre-constructed Worker instance instead of a URL', async () => {
+    const instance = new MockWorker('preconstructed.js')
+    const client = new TrianglifyWorker(instance)
+
+    // no additional Worker may be spawned for the instance
+    expect(MockWorker.instances).toHaveLength(2)
+
+    const promise = client.generate({ width: 100, height: 100 })
+    instance.respond(instance.posted[0]!.id, patternData())
+    await expect(promise).resolves.toBeInstanceOf(Pattern)
   })
 })
 

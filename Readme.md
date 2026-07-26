@@ -14,10 +14,11 @@ Trianglify is a library that I wrote to generate nice SVG background images like
 
 # 📦 Getting Trianglify
 
-You can grab Trianglify with pnpm (recommended):
+You can grab Trianglify with your package manager of choice:
 
 ```
 pnpm add trianglify
+# or: npm install trianglify
 ```
 
 Include it in your application via the unpkg CDN:
@@ -47,6 +48,8 @@ import trianglify, { type TrianglifyOptions } from 'trianglify'
 ```
 
 Node >= 18 is required. `chroma-js` is a regular dependency; `canvas` is an optional peer dependency needed only for `toCanvas()`/PNG output in Node.
+
+Upgrading from v4? See [**MIGRATING.md**](./MIGRATING.md) for the breaking-changes checklist.
 
 # 🏎 Quickstart
 
@@ -205,7 +208,7 @@ The defaults shown above apply in browsers. In Node the defaults are `scaling: f
 
 **`pattern.toData()`** / **`trianglify.Pattern.fromData(data)`**
 
-`pattern.toData()` serializes the pattern to a plain object (colors become CSS strings) that survives `JSON.stringify` or `postMessage`. `trianglify.Pattern.fromData(data)` reconstructs a renderable `Pattern` from that data. This is useful for caching generated patterns, and it is how the Web Worker support (below) transfers patterns between threads.
+`pattern.toData()` serializes the pattern to a plain object (colors become CSS strings) that survives `JSON.stringify` or `postMessage`. `trianglify.Pattern.fromData(data)` reconstructs a renderable `Pattern` from that data, validating it structurally first — malformed data throws a `TypeError` instead of crashing mid-render. This is useful for caching generated patterns, and it is how the Web Worker support (below) transfers patterns between threads.
 
 **`trianglify.defaultOptions`**
 
@@ -256,7 +259,7 @@ Terminates the underlying Web Worker and rejects any pending `generate` promises
 
 # 🎨 Configuration
 
-Trianglify is configured by an options object passed in as the only argument. The following option keys are supported, see below for a complete description of what each option does.
+Trianglify is configured by an options object passed in as the only argument. The following option keys are supported, see below for a complete description of what each option does. Options are strictly validated: an unrecognized option key, or a malformed value, throws a `TypeError` with a message naming the offending option.
 
 ```js
 const defaultOptions = {
@@ -315,7 +318,7 @@ String or array of CSS-formatted colors, default is `'match'`. When set to 'matc
 
 **`palette`**
 
-The array of color combinations to pick from when using `random` for the xColors or yColors. See [`src/utils/colorbrewer.ts`](./src/utils/colorbrewer.ts) for the format of this data.
+The array of color combinations to pick from when using `random` for the xColors or yColors: a name→colors map or an array of color arrays. Every entry must be a non-empty array of CSS color strings — empty or malformed palettes throw a TypeError. See [`src/utils/colorbrewer.ts`](./src/utils/colorbrewer.ts) for the format of the built-in data.
 
 **`colorSpace`**
 
@@ -363,14 +366,14 @@ String, defaults to `'grid'`. Selects the algorithm used to generate the pseudo-
 - `'spiral'` — points along a Fermat (sunflower) spiral, see `spiralDirection` and `spiralRatio`
 - `'sphere'` — an orthographic projection of points distributed on a sphere
 
-This option is ignored when `points` is provided or when `shape` is one of the pentagonal tilings. See [`examples/shapes-and-layouts.html`](./examples/shapes-and-layouts.html) for a visual comparison.
+Every mode emits the same number of points at a given `cellSize`, so modes can be swapped without changing the pattern density. This option is ignored when `points` is provided or when `shape` is one of the pentagonal tilings. See [`examples/shapes-and-layouts.html`](./examples/shapes-and-layouts.html) for a visual comparison.
 
 **`shape`**
 
 String, defaults to `'triangle'`. Selects the geometry the pattern is built from:
 
 - `'triangle'` — Delaunay triangulation of the generated points (the classic behavior)
-- `'pentagon'`, `'hexagon'`, `'heptagon'`, `'octagon'` — one regular polygon per generated point, with the gaps between polygons filled by triangles. With the default `'grid'` point generation, hexagons are arranged in an offset honeycomb layout.
+- `'pentagon'`, `'hexagon'`, `'heptagon'`, `'octagon'` — one regular polygon per generated point, with the gaps between polygons filled by triangles. With the default `'grid'` point generation, hexagons are arranged in an exact honeycomb tiling (gap-free at `variance: 0`).
 - `'circle'` — one circle per generated point, with gap-filling triangles
 - `'pentagon-cairo'` — the equilateral Cairo pentagonal tiling
 - `'pentagon-convex'` — a type 5 convex pentagon tiling forming 6-fold rosettes
