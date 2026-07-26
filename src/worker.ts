@@ -18,14 +18,15 @@ type ColorFunctionName = keyof typeof colorFunctions
 
 interface WorkerRequest {
   id?: number
+  // functions cannot cross the structured-clone boundary, so a color
+  // function only ever arrives as a descriptor or a bare name
   opts?: Omit<Partial<TrianglifyOptions>, 'colorFunction'> & {
-    colorFunction?: ColorFunctionDescriptor | ColorFunction | string
+    colorFunction?: ColorFunctionDescriptor | string
   }
 }
 
-const resolveColorFunction = (descriptor: ColorFunctionDescriptor | ColorFunction | string | undefined): ColorFunction | undefined => {
+const resolveColorFunction = (descriptor: ColorFunctionDescriptor | string | undefined): ColorFunction | undefined => {
   if (!descriptor) return undefined
-  if (typeof descriptor === 'function') return descriptor
   const { name, args = [] } = typeof descriptor === 'string'
     ? { name: descriptor, args: [] as unknown[] }
     : descriptor

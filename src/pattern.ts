@@ -342,9 +342,12 @@ export default class Pattern {
       }
     }
 
-    if (fill && strokeWidth < 1) {
+    if (fill && strokeWidth < 1 && !strokeColor) {
       // draw background strokes at edge bounds to solve for white gaps due to
       // canvas antialiasing. See https://stackoverflow.com/q/19319963/381299
+      // Only when strokes reuse each poly's fill color: with an explicit
+      // strokeColor the fill-colored halo would bleed past the visible
+      // stroke, and the SVG renderer draws no halo either.
       polys.forEach(poly => drawPoly(poly, null, { color: poly.color, width: 2 }))
     }
 

@@ -10,7 +10,7 @@ TypeScript library for generating colorful triangle mesh patterns as SVG/Canvas.
 - `pnpm run test:coverage` — run Jest tests with coverage collection and threshold enforcement
 - `pnpm run typecheck` — run TypeScript type checking (no emit)
 - `pnpm run lint` — run ESLint with typescript-eslint
-- `pnpm run lint:package` — validate packaging with publint + arethetypeswrong (requires build first)
+- `pnpm run lint:package` — validate packaging with publint + arethetypeswrong + a typetests compile against the published declarations (requires build first). attw runs with `--ignore-rules cjs-resolves-to-esm`: the only hit is the `./worker` subpath, where `require('trianglify/worker')` resolves to an ESM-classified `.js` file — irrelevant because the worker bundle is a classic-worker script for `new Worker(...)`, never imported. The `.d.cts` uses `resolution-mode` import attributes, which sets a TS >= 5.3 floor for CJS type consumers (documented in the Readme).
 - `pnpm run ci` — typecheck + lint + build + package validation + test with coverage (full CI pipeline)
 
 ## Architecture

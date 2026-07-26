@@ -112,6 +112,29 @@ describe('worker bundle execution', () => {
     expect(posted[0]).toEqual({ id: 3, error: 'Unknown color function: nope' })
   })
 
+  test('rejects inherited property names as color function descriptors', () => {
+    // without the own-property guard, names like 'constructor' would
+    // resolve via the prototype chain and get invoked as a factory
+    const { posted, send } = bootWorker()
+    send(5, { width: 100, height: 100, colorFunction: { name: 'constructor' } })
+    expect(posted[0]).toEqual({ id: 5, error: 'Unknown color function: constructor' })
+  })
+
+  test('replies with an error for malformed messages instead of crashing', () => {
+    const { scope, posted } = bootWorker()
+    scope.onmessage!({ data: null })
+    scope.onmessage!({ data: { opts: { width: 100 } } }) // missing id
+    scope.onmessage!({ data: 'nonsense' })
+
+    expect(posted).toHaveLength(3)
+    for (const reply of posted) {
+      expect(reply.error).toContain('Malformed worker message')
+      // a malformed message errors its own (undefined) id — it must never
+      // take down other pending requests via the client's onerror path
+      expect(reply.id).toBeUndefined()
+    }
+  })
+
   test('replies with an error instead of throwing on invalid options', () => {
     const { posted, send } = bootWorker()
     expect(() => send(4, { cellSize: 0.5 })).not.toThrow()

@@ -4,17 +4,25 @@ import type { Color, Scale } from 'chroma-js'
 export type Point = [number, number]
 
 /**
- * The geometry a pattern is built from:
- * - `'triangle'` — Delaunay triangulation of the generated points (the classic behavior)
- * - `'pentagon'`, `'hexagon'`, `'heptagon'`, `'octagon'` — one regular polygon
- *   per generated point, with gaps filled by triangles; hexagons on the
- *   default `'grid'` layout are arranged in an offset honeycomb
- * - `'circle'` — one circle per generated point, with gap-filling triangles
+ * The three exact pentagonal tilings. These generate their complete plane
+ * geometry directly from `cellSize`, bypassing the point-generation
+ * pipeline:
  * - `'pentagon-cairo'` — the equilateral Cairo pentagonal tiling
  * - `'pentagon-convex'` — a type 5 convex pentagon tiling forming 6-fold rosettes
  * - `'pentagon-nonconvex'` — a non-convex pentagon tiling forming 12-fold star rosettes
  */
-export type Shape = 'triangle' | 'pentagon' | 'pentagon-cairo' | 'pentagon-convex' | 'pentagon-nonconvex' | 'hexagon' | 'heptagon' | 'octagon' | 'circle'
+export type TilingShape = 'pentagon-cairo' | 'pentagon-convex' | 'pentagon-nonconvex'
+
+/**
+ * The geometry a pattern is built from:
+ * - `'triangle'` — Delaunay triangulation of the generated points (the classic behavior)
+ * - `'pentagon'`, `'hexagon'`, `'heptagon'`, `'octagon'` — one regular polygon
+ *   per generated point, with gaps filled by triangles; hexagons on the
+ *   default `'grid'` layout are arranged in an exact honeycomb
+ * - `'circle'` — one circle per generated point, with gap-filling triangles
+ * - the {@link TilingShape} values — exact pentagonal plane tilings
+ */
+export type Shape = 'triangle' | 'pentagon' | TilingShape | 'hexagon' | 'heptagon' | 'octagon' | 'circle'
 
 /** The center point of a polygon, as `{x, y}`. */
 export interface Centroid {

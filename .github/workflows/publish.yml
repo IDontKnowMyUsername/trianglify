@@ -16,10 +16,19 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+    - name: Verify release tag matches package.json version
+      if: github.event_name == 'release'
+      run: |
+        TAG="${{ github.event.release.tag_name }}"
+        VERSION=$(node -p "require('./package.json').version")
+        if [ "${TAG#v}" != "$VERSION" ]; then
+          echo "Release tag $TAG does not match package.json version $VERSION" >&2
+          exit 1
+        fi
     - name: Install pnpm
-      uses: pnpm/action-setup@v5
-    - uses: actions/setup-node@v6
+      uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5
+    - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
       with:
         node-version: 22
         cache: 'pnpm'

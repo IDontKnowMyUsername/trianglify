@@ -22,8 +22,8 @@ import { getCentroid, getGridDensity } from './utils/geom'
 import * as colorFunctions from './utils/colorFunctions'
 import { generateRegularPolygon, getSidesForShape } from './utils/shapes'
 import { generateTiling } from './utils/tilings'
-import type { TrianglifyOptions, Polygon, Point, CSSColor, Centroid, Shape } from './types'
-export type { TrianglifyOptions, RenderOpts, ColorFunctionParams, ColorFunction, ColorFunctionDescriptor, CSSColor, Polygon, PatternData, SVGTreeNode, SVGOptions, CanvasOptions, Shape, Point, Centroid } from './types'
+import type { TrianglifyOptions, Polygon, Point, CSSColor, Centroid, Shape, TilingShape } from './types'
+export type { TrianglifyOptions, RenderOpts, ColorFunctionParams, ColorFunction, ColorFunctionDescriptor, CSSColor, Polygon, PatternData, SVGTreeNode, SVGOptions, CanvasOptions, Shape, TilingShape, Point, Centroid } from './types'
 
 /** The frozen defaults for every option — see {@link TrianglifyOptions} for what each one does. */
 const defaultOptions: TrianglifyOptions = Object.freeze({
@@ -49,9 +49,26 @@ const defaultOptions: TrianglifyOptions = Object.freeze({
 
 // Pentagon tiling shapes generate their complete geometry directly and
 // bypass the point-generation pipeline entirely
-const tilingShapes: Shape[] = ['pentagon-cairo', 'pentagon-convex', 'pentagon-nonconvex']
+const tilingShapes: readonly TilingShape[] = ['pentagon-cairo', 'pentagon-convex', 'pentagon-nonconvex']
 
-const validColorSpaces: TrianglifyOptions['colorSpace'][] = ['rgb', 'hsv', 'hsl', 'hsi', 'lab', 'hcl']
+const isTilingShape = (shape: Shape): shape is TilingShape =>
+  (tilingShapes as readonly Shape[]).includes(shape)
+
+// The validators below are Record<union, true> maps rather than arrays:
+// the type forces compile-time completeness, so adding a member to a union
+// type without updating its validator is a type error here
+const validColorSpaces: Record<TrianglifyOptions['colorSpace'], true> = { rgb: true, hsv: true, hsl: true, hsi: true, lab: true, hcl: true }
+
+const validShapes: Record<Shape, true> = { triangle: true, pentagon: true, 'pentagon-cairo': true, 'pentagon-convex': true, 'pentagon-nonconvex': true, hexagon: true, heptagon: true, octagon: true, circle: true }
+
+const validPointGenerations: Record<TrianglifyOptions['pointGeneration'], true> = { grid: true, poisson: true, bestCandidate: true, spiral: true, sphere: true }
+
+const validSpiralDirections: Record<TrianglifyOptions['spiralDirection'], true> = { cw: true, ccw: true }
+
+// guard against runaway allocations: a huge artboard with a tiny cellSize
+// would allocate the point grid (and the poisson accelerator) far beyond
+// anything renderable
+const MAX_POINTS = 1_000_000
 
 const validateOptions = (_opts: Partial<TrianglifyOptions>): TrianglifyOptions => {
   Object.keys(_opts).forEach(k => {
@@ -69,6 +86,9 @@ const validateOptions = (_opts: Partial<TrianglifyOptions>): TrianglifyOptions =
   }
   if (typeof opts.cellSize !== 'number' || !isFinite(opts.cellSize) || opts.cellSize < 1) {
     throw TypeError(`invalid cellSize: ${opts.cellSize}`)
+  }
+  if (opts.points == null && getGridDensity(opts.width, opts.height, opts.cellSize).pointCount > MAX_POINTS) {
+    throw TypeError(`invalid cellSize: ${opts.cellSize} yields more than ${MAX_POINTS.toLocaleString('en-US')} points at ${opts.width}x${opts.height} — increase cellSize`)
   }
   if (typeof opts.variance !== 'number' || !isFinite(opts.variance) || opts.variance < 0) {
     throw TypeError(`invalid variance: ${opts.variance}`)
@@ -108,7 +128,7 @@ const validateOptions = (_opts: Partial<TrianglifyOptions>): TrianglifyOptions =
   }
   validateColors(opts.xColors, 'xColors')
   validateColors(opts.yColors, 'yColors')
-  if (!validColorSpaces.includes(opts.colorSpace)) {
+  if (!Object.hasOwn(validColorSpaces, opts.colorSpace)) {
     throw TypeError(`invalid colorSpace: ${opts.colorSpace}`)
   }
   if (typeof opts.colorFunction !== 'function') {
@@ -123,16 +143,13 @@ const validateOptions = (_opts: Partial<TrianglifyOptions>): TrianglifyOptions =
   if (opts.strokeColor !== null && typeof opts.strokeColor !== 'string') {
     throw TypeError(`invalid strokeColor: ${String(opts.strokeColor)}`)
   }
-  const validPointGenerations = ['grid', 'poisson', 'bestCandidate', 'spiral', 'sphere']
-  if (!validPointGenerations.includes(opts.pointGeneration)) {
+  if (!Object.hasOwn(validPointGenerations, opts.pointGeneration)) {
     throw TypeError(`invalid pointGeneration: ${opts.pointGeneration}`)
   }
-  const validShapes: Shape[] = ['triangle', 'pentagon', 'pentagon-cairo', 'pentagon-convex', 'pentagon-nonconvex', 'hexagon', 'heptagon', 'octagon', 'circle']
-  if (!validShapes.includes(opts.shape)) {
+  if (!Object.hasOwn(validShapes, opts.shape)) {
     throw TypeError(`invalid shape: ${opts.shape}`)
   }
-  const validSpiralDirections = ['cw', 'ccw']
-  if (!validSpiralDirections.includes(opts.spiralDirection)) {
+  if (!Object.hasOwn(validSpiralDirections, opts.spiralDirection)) {
     throw TypeError(`invalid spiralDirection: ${opts.spiralDirection}`)
   }
   if (opts.spiralRatio !== 'golden' && (typeof opts.spiralRatio !== 'number' || !isFinite(opts.spiralRatio) || opts.spiralRatio <= 0)) {
@@ -149,7 +166,7 @@ const validateOptions = (_opts: Partial<TrianglifyOptions>): TrianglifyOptions =
     }
     // tiling shapes generate their own geometry — reject custom points
     // instead of silently ignoring them
-    if (tilingShapes.includes(opts.shape)) {
+    if (isTilingShape(opts.shape)) {
       throw TypeError(`custom points are not supported for tiling shape: ${opts.shape}`)
     }
   }
@@ -355,12 +372,10 @@ function trianglify (_opts: Partial<TrianglifyOptions> = {}): Pattern {
   const xScale = chroma.scale(xColors).mode(opts.colorSpace)
   const yScale = chroma.scale(yColors).mode(opts.colorSpace)
 
-  const isTilingShape = tilingShapes.includes(opts.shape)
-
   // Our next step is to generate a pseudo-random grid of {x, y} points,
   // (or to simply utilize the points that were passed to us)
   // copy user-supplied points so shape generation never mutates the caller's array
-  let points: Point[] = isTilingShape
+  let points: Point[] = isTilingShape(opts.shape)
     ? []
     : opts.points ? opts.points.slice() : getPoints(opts, rand)
 
@@ -392,7 +407,7 @@ function trianglify (_opts: Partial<TrianglifyOptions> = {}): Pattern {
     return { css: () => cssValue }
   }
 
-  if (isTilingShape) {
+  if (isTilingShape(shape)) {
     const tiling = generateTiling(shape, width, height, opts.cellSize)
     points = tiling.points
     return new Pattern(points, buildTilingPolys(points, tiling.polys, colorPoly), opts)

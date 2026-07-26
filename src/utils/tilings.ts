@@ -1,4 +1,4 @@
-import type { Point, Shape } from '../types'
+import type { Point, TilingShape } from '../types'
 
 export interface TilingResult {
   points: Point[]
@@ -318,11 +318,12 @@ function generateNonconvexTiling(width: number, height: number, cellSize: number
 
 // ─── Dispatcher ──────────────────────────────────────────────────
 
-export function generateTiling(shape: Shape, width: number, height: number, cellSize: number): TilingResult {
+// Exhaustive over TilingShape with no default: adding a tiling shape
+// without handling it here is a compile error (noImplicitReturns).
+export function generateTiling(shape: TilingShape, width: number, height: number, cellSize: number): TilingResult {
   switch (shape) {
     case 'pentagon-cairo': return generateCairoTiling(width, height, cellSize)
     case 'pentagon-convex': return generateConvexTiling(width, height, cellSize)
     case 'pentagon-nonconvex': return generateNonconvexTiling(width, height, cellSize)
-    default: throw new Error(`Unknown tiling shape: ${shape}`)
   }
 }

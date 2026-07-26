@@ -47,6 +47,8 @@ TypeScript definitions are bundled — `dist/trianglify.d.ts` for ESM consumers 
 import trianglify, { type TrianglifyOptions } from 'trianglify'
 ```
 
+Consuming the CommonJS type definitions requires TypeScript >= 5.3 with `moduleResolution` set to `node16`/`nodenext` or `bundler` (the `.d.cts` uses `resolution-mode` import attributes). ESM consumers have no additional version floor.
+
 Node >= 18 is required. `chroma-js` is a regular dependency; `canvas` is an optional peer dependency needed only for `toCanvas()`/PNG output in Node.
 
 Upgrading from v4? See [**MIGRATING.md**](./MIGRATING.md) for the breaking-changes checklist.

@@ -2,7 +2,7 @@ name: build
 
 on:
   push:
-    branches: [ master ]
+    branches: [ '**' ]
   pull_request:
     branches: [ master ]
   workflow_dispatch:
@@ -15,45 +15,84 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # typecheck + lint are node-version independent — run them once
+  # typecheck, lint, and packaging validation are node-version independent —
+  # run them once instead of per matrix leg
   lint:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
     - name: Install pnpm
-      uses: pnpm/action-setup@v5
-    - uses: actions/setup-node@v6
+      uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5
+    - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
       with:
         node-version: 22
         cache: 'pnpm'
     - run: pnpm install --frozen-lockfile
     - run: pnpm run typecheck
     - run: pnpm run lint
+    - run: pnpm run build
+    - run: pnpm run lint:package
 
   test:
     needs: lint
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
+        os: [ubuntu-latest]
         node-version: [18, 20, 22, 24]
+        # one leg per non-linux OS — the canvas peer dependency is a native
+        # module, so Node consumers on windows/macos deserve a real signal
+        include:
+          - os: windows-latest
+            node-version: 22
+          - os: macos-latest
+            node-version: 22
 
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
     - name: Install pnpm
-      uses: pnpm/action-setup@v5
+      uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5
     - name: Use Node.js ${{ matrix.node-version }}
-      uses: actions/setup-node@v6
+      uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
       with:
         node-version: ${{ matrix.node-version }}
         cache: 'pnpm'
     - run: pnpm install --frozen-lockfile # install dependencies in cleanroom
     - run: pnpm run build
-    - run: pnpm run lint:package
     - run: pnpm run test:coverage
+    - name: Write coverage summary
+      if: matrix.node-version == 22 && matrix.os == 'ubuntu-latest'
+      run: |
+        node --input-type=module -e '
+          import { readFileSync, appendFileSync } from "node:fs";
+          const summary = JSON.parse(readFileSync("coverage/coverage-summary.json", "utf8"));
+          const acc = { statements: [0, 0], branches: [0, 0], functions: [0, 0], lines: [0, 0] };
+          for (const [file, metrics] of Object.entries(summary)) {
+            if (!/\/src\//.test(file) || /node_modules/.test(file)) continue;
+            for (const key of Object.keys(acc)) {
+              acc[key][0] += metrics[key].covered;
+              acc[key][1] += metrics[key].total;
+            }
+          }
+          const pct = ([covered, total]) => total ? (100 * covered / total).toFixed(2) : "100.00";
+          const lines = [
+            "## Coverage (src/)", "",
+            "| Metric | % | Covered / Total |", "|---|---|---|",
+            ...Object.entries(acc).map(([key, v]) => "| " + key + " | " + pct(v) + "% | " + v[0] + " / " + v[1] + " |")
+          ];
+          appendFileSync(process.env.GITHUB_STEP_SUMMARY, lines.join("\n") + "\n");
+        '
     - name: Upload coverage report
-      if: matrix.node-version == 22
-      uses: actions/upload-artifact@v4
+      if: matrix.node-version == 22 && matrix.os == 'ubuntu-latest'
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
       with:
         name: coverage
         path: coverage/lcov.info
+
+  dependency-review:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+    - uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48 # v4

@@ -1381,3 +1381,46 @@ describe('Palette and color option validation', () => {
     expect(pattern.polys.length).toBeGreaterThan(0)
   })
 })
+
+describe('immutability of shared defaults', () => {
+  test('colorbrewer palette map is deeply frozen', () => {
+    expect(Object.isFrozen(trianglify.utils.colorbrewer)).toBe(true)
+    expect(Object.isFrozen(trianglify.utils.colorbrewer.YlGn)).toBe(true)
+    // mutating the shared default palette must throw, not silently change
+    // every future pattern
+    expect(() => trianglify.utils.colorbrewer.YlGn.push('#ffffff')).toThrow()
+  })
+
+  test('defaultOptions is frozen', () => {
+    expect(Object.isFrozen(trianglify.defaultOptions)).toBe(true)
+  })
+})
+
+describe('point count allocation guard', () => {
+  test('rejects width/height/cellSize combinations that explode the point grid', () => {
+    expect(() => trianglify({ width: 100000, height: 100000, cellSize: 1 })).toThrow('increase cellSize')
+  })
+
+  test('custom points bypass the generation-size guard', () => {
+    const points: Array<[number, number]> = [[0, 0], [50000, 0], [0, 50000], [50000, 50000]]
+    expect(() => trianglify({ width: 100000, height: 100000, cellSize: 1, points })).not.toThrow()
+  })
+})
+
+describe('canvas error paths', () => {
+  test('throws a helpful error when the canvas package is unavailable', () => {
+    jest.isolateModules(() => {
+      jest.doMock('canvas', () => { throw new Error("Cannot find module 'canvas'") })
+      const fresh = require('../dist/trianglify.cjs')
+      const pattern = fresh({ seed: 'no-canvas', width: 50, height: 50 })
+      expect(() => pattern.toCanvas()).toThrow('requires either a browser environment')
+      jest.dontMock('canvas')
+    })
+  })
+
+  test('throws when the destination canvas cannot provide a 2D context', () => {
+    const pattern = trianglify({ seed: 'no-ctx', width: 50, height: 50 })
+    const badCanvas = { getContext: () => null } as any
+    expect(() => pattern.toCanvas(badCanvas)).toThrow('Could not acquire 2D rendering context')
+  })
+})

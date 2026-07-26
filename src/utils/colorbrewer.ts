@@ -36,4 +36,10 @@ const colorbrewer: Record<string, string[]> = {
   RdYlGn: ['#a50026', '#d73027', '#f46d43', '#fdae61', '#fee08b', '#ffffbf', '#d9ef8b', '#a6d96a', '#66bd63', '#1a9850', '#006837']
 }
 
+// deep-frozen: this map is the default `palette` option and is exposed as
+// trianglify.utils.colorbrewer — mutating it would silently change every
+// future pattern
+Object.values(colorbrewer).forEach(colors => Object.freeze(colors))
+Object.freeze(colorbrewer)
+
 export default colorbrewer

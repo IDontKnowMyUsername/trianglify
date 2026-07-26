@@ -29,6 +29,16 @@ export default tseslint.config(
     }
   },
   {
+    // build scripts are plain ESM JavaScript with no tsconfig — lint them
+    // with the non-type-aware recommended rules (postbuild.mjs generates
+    // shipped declarations, so it deserves lint coverage)
+    files: ['scripts/**/*.mjs'],
+    extends: [tseslint.configs.disableTypeChecked],
+    languageOptions: {
+      globals: { console: 'readonly', process: 'readonly', URL: 'readonly' }
+    }
+  },
+  {
     // tests require() built JS bundles, so everything they touch is `any` —
     // the unsafe-* family would flag every assertion
     files: ['src/**/*.test.ts'],

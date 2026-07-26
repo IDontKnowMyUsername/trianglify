@@ -337,3 +337,26 @@ describe('Pattern outputs in browser environment', () => {
     })
   })
 })
+
+describe('canvas antialiasing halo', () => {
+  // jest-canvas-mock records draw calls — count stroke() invocations to
+  // verify when the seam-filling halo pass runs
+  const strokeCalls = (canvas: HTMLCanvasElement): number =>
+    (canvas.getContext('2d') as any).__getEvents()
+      .filter((e: any) => e.type === 'stroke').length
+
+  test('fill-only rendering draws one seam-filling halo stroke per poly', () => {
+    const pattern = trianglify({ seed: 'halo', width: 100, height: 100 })
+    expect(strokeCalls(pattern.toCanvas())).toBe(pattern.polys.length)
+  })
+
+  test('thin strokes without strokeColor keep the halo under the visible stroke', () => {
+    const pattern = trianglify({ seed: 'halo', width: 100, height: 100, strokeWidth: 0.5 })
+    expect(strokeCalls(pattern.toCanvas())).toBe(2 * pattern.polys.length)
+  })
+
+  test('an explicit strokeColor suppresses the fill-colored halo (matches SVG)', () => {
+    const pattern = trianglify({ seed: 'halo', width: 100, height: 100, strokeWidth: 0.5, strokeColor: '#000000' })
+    expect(strokeCalls(pattern.toCanvas())).toBe(pattern.polys.length)
+  })
+})

@@ -39,23 +39,49 @@ for (const [label, file] of [['minified', 'trianglify.bundle.js'], ['debug', 'tr
 }
 
 describe('ESM bundles (real Node import)', () => {
-  const importAndRender = (file: string): string => {
-    const fileUrl = 'file://' + path.join(__dirname, '../dist', file)
-    const script = `
-      import(${JSON.stringify(fileUrl)}).then((m) => {
-        const pattern = m.default(${JSON.stringify(SEED_OPTS)})
-        process.stdout.write(pattern.toSVGTree().toString())
-      }).catch((err) => { console.error(err); process.exit(1) })
-    `
-    return execFileSync(process.execPath, ['-e', script], { encoding: 'utf8', timeout: 30_000 })
+  interface EsmProbe {
+    svg: string
+    api: string[]
+    canvasError?: string
   }
 
-  test('trianglify.mjs (Node ESM entry) renders identically to CJS', () => {
-    expect(importAndRender('trianglify.mjs')).toEqual(expectedSVG)
+  const probe = (file: string): EsmProbe => {
+    const fileUrl = 'file://' + path.join(__dirname, '../dist', file)
+    const script = `
+      // node -e exposes globalThis.require, which a real browser/bundler
+      // ESM environment does not have — remove it so the probe sees the
+      // bundle's true behavior (trianglify.mjs brings its own module-scoped
+      // require via the createRequire banner and is unaffected)
+      delete globalThis.require
+      import(${JSON.stringify(fileUrl)}).then((m) => {
+        const t = m.default
+        const out = {
+          svg: t(${JSON.stringify(SEED_OPTS)}).toSVGTree().toString(),
+          api: ['Pattern', 'TrianglifyWorker', 'colorFunctions', 'defaultOptions', 'utils'].filter((k) => k in t)
+        }
+        try { t(${JSON.stringify(SEED_OPTS)}).toCanvas() } catch (e) { out.canvasError = e.message }
+        process.stdout.write(JSON.stringify(out))
+      }).catch((err) => { console.error(err); process.exit(1) })
+    `
+    return JSON.parse(execFileSync(process.execPath, ['-e', script], { encoding: 'utf8', timeout: 30_000 }))
+  }
+
+  test('trianglify.mjs (Node ESM entry) matches CJS and supports node-canvas', () => {
+    const result = probe('trianglify.mjs')
+    expect(result.svg).toEqual(expectedSVG)
+    expect(result.api).toEqual(['Pattern', 'TrianglifyWorker', 'colorFunctions', 'defaultOptions', 'utils'])
+    // the createRequire banner makes the optional canvas dependency loadable
+    expect(result.canvasError).toBeUndefined()
   })
 
-  test('trianglify.browser.mjs (browser exports condition) renders identically to CJS', () => {
-    expect(importAndRender('trianglify.browser.mjs')).toEqual(expectedSVG)
+  test('trianglify.browser.mjs (browser exports condition) matches CJS and degrades gracefully without require', () => {
+    const result = probe('trianglify.browser.mjs')
+    expect(result.svg).toEqual(expectedSVG)
+    expect(result.api).toEqual(['Pattern', 'TrianglifyWorker', 'colorFunctions', 'defaultOptions', 'utils'])
+    // the browser build deliberately omits the createRequire banner (it
+    // breaks bundlers) — outside a browser, toCanvas() must fail with the
+    // helpful install message rather than an opaque ReferenceError
+    expect(result.canvasError).toContain('requires either a browser environment')
   })
 })
 
@@ -63,12 +89,12 @@ describe('bundle size ceilings', () => {
   const sizeOf = (file: string): number =>
     fs.statSync(path.join(__dirname, '../dist', file)).size
 
-  test('bundles stay under generous size ceilings', () => {
-    // guards against accidental dependency bloat — raise deliberately when
-    // a size increase is intentional
-    expect(sizeOf('trianglify.bundle.js')).toBeLessThan(120_000)
-    expect(sizeOf('trianglify.worker.js')).toBeLessThan(120_000)
-    expect(sizeOf('trianglify.cjs')).toBeLessThan(150_000)
+  test('bundles stay under size ceilings', () => {
+    // ~15% headroom over current sizes — guards against accidental
+    // dependency bloat; raise deliberately when an increase is intentional
+    expect(sizeOf('trianglify.bundle.js')).toBeLessThan(88_000)
+    expect(sizeOf('trianglify.worker.js')).toBeLessThan(88_000)
+    expect(sizeOf('trianglify.cjs')).toBeLessThan(120_000)
   })
 
   test('minified bundles retain license attribution', () => {

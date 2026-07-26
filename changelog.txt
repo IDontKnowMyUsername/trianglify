@@ -11,7 +11,8 @@ Breaking changes vs v4:
 - options are strictly validated: unknown option keys and malformed values
   (including the v4 xColors/yColors: false idiom, empty color arrays, and
   empty or malformed palettes) throw a TypeError instead of being silently
-  ignored
+  ignored; width/height/cellSize combinations that would generate more than
+  1,000,000 points are rejected as an allocation guard
 - polygon color values are lightweight { css() } objects, no longer chroma-js
   Color instances
 - patterns generated for a given seed differ from v4 (new RNG with separate
@@ -40,8 +41,9 @@ New features:
 - TypeScript throughout: bundled type definitions for ESM and CJS consumers,
   JSDoc on the public API surface, importable option/result types
 - rendering improvements: re-rendering into an existing destSVG replaces its
-  content instead of appending, SVG attribute values are escaped, antialiased
-  canvas gap handling retained from v4, canvas is an optional peer dependency
+  content instead of appending, SVG attribute values are escaped, the canvas
+  antialiasing halo is suppressed when an explicit strokeColor is set (so
+  canvas and SVG output agree), canvas is an optional peer dependency
   (browser/SVG-only usage installs nothing extra)
 
 Quality & tooling:

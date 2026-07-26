@@ -32,8 +32,12 @@ export function generateRegularPolygon(
 
 /**
  * Get the number of sides for a given shape.
- * Returns null for shapes that don't use polygon vertices (triangle uses
- * Delaunay, circle uses radius-based rendering).
+ * Returns null for shapes that don't use regular-polygon vertices (triangle
+ * uses Delaunay, circle uses radius-based rendering, tilings generate their
+ * own geometry).
+ *
+ * The switch is deliberately exhaustive with no default: adding a Shape
+ * member without handling it here is a compile error (noImplicitReturns).
  */
 export function getSidesForShape(shape: Shape): number | null {
   switch (shape) {
@@ -43,7 +47,9 @@ export function getSidesForShape(shape: Shape): number | null {
     case 'octagon': return 8
     case 'triangle':
     case 'circle':
-    default:
+    case 'pentagon-cairo':
+    case 'pentagon-convex':
+    case 'pentagon-nonconvex':
       return null
   }
 }

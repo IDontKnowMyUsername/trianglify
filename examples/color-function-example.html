@@ -119,6 +119,30 @@
       colorFunction: radialGradient(gradientRadius)
     })
     addToPage(radial, 'custom radial gradient')
+
+    // Example 5: the built-in radial color function does the same thing
+    // without the custom code. The falloff parameter shapes the gradient
+    // curve: < 1 concentrates color near the center, > 1 at the edges.
+    const builtinRadial = trianglify({
+      seed,
+      width: 400,
+      height: 300,
+      cellSize: 15,
+      colorFunction: trianglify.colorFunctions.radial(0.7)
+    })
+    addToPage(builtinRadial, 'trianglify.colorFunctions.radial(0.7)')
+
+    // Example 6: the built-in angular color function maps color to the
+    // angle around the center — a conic gradient. The offset parameter
+    // rotates the gradient (in radians).
+    const builtinAngular = trianglify({
+      seed,
+      width: 400,
+      height: 300,
+      cellSize: 15,
+      colorFunction: trianglify.colorFunctions.angular(Math.PI / 2)
+    })
+    addToPage(builtinAngular, 'trianglify.colorFunctions.angular(Math.PI / 2)')
   </script>
   </body>
 </html>
