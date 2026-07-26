@@ -14,7 +14,7 @@
  */
 
 import Pattern from './pattern'
-import type { TrianglifyOptions, ColorFunction, PatternData } from './types'
+import type { TrianglifyOptions, ColorFunction, ColorFunctionDescriptor, PatternData } from './types'
 
 interface PendingHandler {
   resolve: (pattern: Pattern) => void
@@ -22,7 +22,7 @@ interface PendingHandler {
 }
 
 interface WorkerOpts extends Omit<Partial<TrianglifyOptions>, 'colorFunction'> {
-  colorFunction?: ColorFunction | { name: string; args: unknown[] }
+  colorFunction?: ColorFunction | ColorFunctionDescriptor
 }
 
 export default class TrianglifyWorker {
@@ -31,8 +31,12 @@ export default class TrianglifyWorker {
   private _pending: Map<number, PendingHandler>
   private _terminated: boolean
 
-  constructor (workerUrl: string) {
-    this._worker = new Worker(workerUrl)
+  // Accepts a script URL/path, or a pre-constructed Worker so bundler idioms
+  // like new Worker(new URL('trianglify/worker', import.meta.url)) work
+  constructor (worker: string | URL | Worker, workerOptions?: WorkerOptions) {
+    this._worker = typeof Worker !== 'undefined' && worker instanceof Worker
+      ? worker
+      : new Worker(worker as string | URL, workerOptions)
     this._nextId = 0
     this._pending = new Map()
     this._terminated = false
@@ -62,6 +66,7 @@ export default class TrianglifyWorker {
         return
       }
       if (signal?.aborted) {
+        // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors -- propagate the caller's abort reason as-is, like fetch does
         reject(signal.reason ?? new DOMException('Aborted', 'AbortError'))
         return
       }
@@ -72,7 +77,7 @@ export default class TrianglifyWorker {
       // Serialize colorFunction: use _descriptor for built-in functions,
       // omit custom functions (worker will use default)
       if (typeof workerOpts.colorFunction === 'function') {
-        const descriptor = (workerOpts.colorFunction as ColorFunction)._descriptor
+        const descriptor = workerOpts.colorFunction._descriptor
         if (descriptor) {
           workerOpts.colorFunction = descriptor
         } else {
@@ -82,6 +87,7 @@ export default class TrianglifyWorker {
 
       const onAbort = () => {
         this._pending.delete(id)
+        // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors -- propagate the caller's abort reason as-is, like fetch does
         reject(signal!.reason ?? new DOMException('Aborted', 'AbortError'))
       }
       signal?.addEventListener('abort', onAbort, { once: true })

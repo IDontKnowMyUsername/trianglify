@@ -47,9 +47,16 @@ export interface ColorFunctionParams {
   random: () => number
 }
 
+// Serializable reference to a built-in color function — functions can't
+// cross the postMessage boundary, so this is the worker wire format
+export interface ColorFunctionDescriptor {
+  name: string
+  args?: unknown[]
+}
+
 export interface ColorFunction {
   (params: ColorFunctionParams): Color
-  _descriptor?: { name: string; args: number[] }
+  _descriptor?: ColorFunctionDescriptor
 }
 
 export interface Polygon {

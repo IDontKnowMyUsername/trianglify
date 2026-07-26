@@ -20,7 +20,8 @@ TypeScript library for generating colorful triangle mesh patterns as SVG/Canvas.
 - `src/worker.ts` — Web Worker entry point (built as IIFE)
 - `src/workerClient.ts` — TrianglifyWorker client class
 - `src/types.ts` — shared TypeScript interfaces and types
-- `src/utils/` — color functions, geometry, RNG, colorbrewer palette, scaling
+- `src/utils/` — color functions, geometry helpers, RNG, colorbrewer palette, DPI scaling, env detection, point generators (poissonDisc, bestCandidate, spiral, sphere), regular-polygon shapes, pentagonal tilings
+- `scripts/` — build helpers: clean.mjs (pre-build), postbuild.mjs (d.cts + worker types), check-dist.mjs (stale-build guard before jest)
 
 ## Key Dependencies
 

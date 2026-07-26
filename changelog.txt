@@ -1,4 +1,5 @@
 v5 (unreleased)
+- validate all options, clear destSVG on re-render, accept Worker instances in TrianglifyWorker, harden worker messages, refactor generation pipelines, add pixel/HiDPI/type-surface tests, stale-dist guard, type-aware lint, publish workflow, module-format docs and worker example (2026-07-25)
 - fix packaging types (CJS declarations, worker/types conditions, @types/chroma-js as dependency), validate with publint/attw in CI, retain bundled license notices, decouple palette selection from geometry RNG, measure coverage against source (2026-07-25)
 - document exact rosette constants, date changelog entries, mark perf plan historical, fix Readme seed/canvas notes (2026-07-25)
 - stop shipping dist/types, move delaunator to devDependencies, cache pnpm in CI, add prepublishOnly guard (2026-07-25)

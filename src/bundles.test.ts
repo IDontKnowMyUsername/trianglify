@@ -8,6 +8,7 @@ export {}
 // loaded in a real Node process via dynamic import (Jest's CommonJS
 // transform cannot import ESM in-process).
 
+const fs = require('fs')
 const path = require('path')
 const { execFileSync } = require('child_process')
 
@@ -41,7 +42,7 @@ describe('ESM bundles (real Node import)', () => {
         process.stdout.write(pattern.toSVGTree().toString())
       }).catch((err) => { console.error(err); process.exit(1) })
     `
-    return execFileSync(process.execPath, ['-e', script], { encoding: 'utf8' })
+    return execFileSync(process.execPath, ['-e', script], { encoding: 'utf8', timeout: 30_000 })
   }
 
   test('trianglify.mjs (Node ESM entry) renders identically to CJS', () => {
@@ -50,5 +51,26 @@ describe('ESM bundles (real Node import)', () => {
 
   test('trianglify.browser.mjs (browser exports condition) renders identically to CJS', () => {
     expect(importAndRender('trianglify.browser.mjs')).toEqual(expectedSVG)
+  })
+})
+
+describe('bundle size ceilings', () => {
+  const sizeOf = (file: string): number =>
+    fs.statSync(path.join(__dirname, '../dist', file)).size
+
+  test('bundles stay under generous size ceilings', () => {
+    // guards against accidental dependency bloat — raise deliberately when
+    // a size increase is intentional
+    expect(sizeOf('trianglify.bundle.js')).toBeLessThan(120_000)
+    expect(sizeOf('trianglify.worker.js')).toBeLessThan(120_000)
+    expect(sizeOf('trianglify.cjs')).toBeLessThan(150_000)
+  })
+
+  test('minified bundles retain license attribution', () => {
+    for (const file of ['trianglify.bundle.js', 'trianglify.worker.js']) {
+      const source = fs.readFileSync(path.join(__dirname, '../dist', file), 'utf8')
+      expect(source).toContain('chroma-js')
+      expect(source).toContain('BSD-3-Clause')
+    }
   })
 })

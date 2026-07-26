@@ -1,7 +1,6 @@
 import getScalingRatio from './utils/getScalingRatio'
+import { isBrowser } from './utils/env'
 import type { Point, CSSColor, Polygon, TrianglifyOptions, RenderOpts, PatternData, SVGTreeNode, SVGOptions, CanvasOptions } from './types'
-
-const isBrowser = (typeof window !== 'undefined' && typeof document !== 'undefined')
 
 type SVGAttrs = Record<string, string | number | undefined>
 
@@ -28,6 +27,11 @@ type Serializer<T> = (tagName: string, attrs: SVGAttrs, children?: T[], existing
 // utility for building up SVG node trees with the DOM API
 const sDOM: Serializer<SVGElement> = (tagName, attrs = {}, children?, existingRoot?) => {
   const elem = existingRoot || (doc as Document).createElementNS('http://www.w3.org/2000/svg', tagName)
+  if (existingRoot) {
+    // re-rendering into an existing root replaces its content rather than
+    // appending a second copy of the pattern
+    while (elem.firstChild) elem.removeChild(elem.firstChild)
+  }
   Object.entries(attrs).forEach(
     ([k, v]) => v !== undefined && elem.setAttribute(k, String(v))
   )
@@ -70,9 +74,8 @@ export default class Pattern {
 
   // Serialize the pattern to a plain object suitable for postMessage/JSON.
   // Chroma color objects are converted to CSS strings.
-  toData = (): PatternData => {
-    const { width, height, fill, strokeWidth, strokeColor } = this.opts
-    const shape = 'shape' in this.opts ? this.opts.shape : 'triangle' as const
+  toData (): PatternData {
+    const { width, height, fill, strokeWidth, strokeColor, shape } = this.opts
     return {
       points: this.points,
       polys: this.polys.map(poly => ({
@@ -97,7 +100,7 @@ export default class Pattern {
     return new Pattern(data.points, polys, data.opts)
   }
 
-  private _toSVG = <T>(serializer: Serializer<T>, destSVG: T | null, _svgOpts: SVGOptions = {}): T => {
+  private _toSVG<T> (serializer: Serializer<T>, destSVG: T | null, _svgOpts: SVGOptions = {}): T {
     const s = serializer
     const defaultSVGOptions = { includeNamespace: true, coordinateDecimals: 1 }
     const svgOpts = { ...defaultSVGOptions, ..._svgOpts }
@@ -110,7 +113,7 @@ export default class Pattern {
       ? points
       : (() => {
           const factor = 10 ** svgOpts.coordinateDecimals
-          return points.map(p => p.map(x => Math.round(x * factor) / factor))
+          return points.map((p): Point => [Math.round(p[0] * factor) / factor, Math.round(p[1] * factor) / factor])
         })()
 
     const round = svgOpts.coordinateDecimals < 0
@@ -162,14 +165,21 @@ export default class Pattern {
     return svg
   }
 
-  toSVGTree = (svgOpts?: SVGOptions): SVGTreeNode => this._toSVG(sNode, null, svgOpts)
+  toSVGTree (svgOpts?: SVGOptions): SVGTreeNode {
+    return this._toSVG(sNode, null, svgOpts)
+  }
 
-  toSVG: ((destSVG?: SVGElement | null, svgOpts?: SVGOptions) => SVGElement) |
-    ((destSVG?: unknown, svgOpts?: SVGOptions) => SVGTreeNode) = isBrowser
-      ? (destSVG?: SVGElement | null, svgOpts?: SVGOptions) => this._toSVG(sDOM, destSVG ?? null, svgOpts)
-      : (_destSVG?: unknown, svgOpts?: SVGOptions) => this.toSVGTree(svgOpts)
+  // In browsers this returns an SVGElement (rendered into destSVG when
+  // given); in Node it ignores destSVG and returns a plain SVGTreeNode.
+  toSVG (destSVG: SVGElement, svgOpts?: SVGOptions): SVGElement
+  toSVG (destSVG?: SVGElement | null, svgOpts?: SVGOptions): SVGElement | SVGTreeNode
+  toSVG (destSVG?: SVGElement | null, svgOpts?: SVGOptions): SVGElement | SVGTreeNode {
+    return isBrowser
+      ? this._toSVG(sDOM, destSVG ?? null, svgOpts)
+      : this.toSVGTree(svgOpts)
+  }
 
-  toCanvas = (destCanvas?: HTMLCanvasElement, _canvasOpts: CanvasOptions = {}): HTMLCanvasElement => {
+  toCanvas (destCanvas?: HTMLCanvasElement, _canvasOpts: CanvasOptions = {}): HTMLCanvasElement {
     const defaultCanvasOptions = {
       scaling: isBrowser ? 'auto' as const : false as const,
       applyCssScaling: !!isBrowser
@@ -185,7 +195,7 @@ export default class Pattern {
     if (canvasOpts.scaling) {
       const drawRatio = canvasOpts.scaling === 'auto'
         ? getScalingRatio()
-        : canvasOpts.scaling as number
+        : canvasOpts.scaling
 
       if (drawRatio !== 1) {
         // set the 'real' canvas size to the higher width/height
@@ -207,6 +217,12 @@ export default class Pattern {
         }
       }
       ctx.scale(drawRatio, drawRatio)
+    } else {
+      // no scaling: still normalize the canvas to the pattern's dimensions
+      // so an unscaled destCanvas (the Node default) matches the browser
+      // rendering behavior
+      canvas.width = width
+      canvas.height = height
     }
 
     ctx.lineJoin = 'round'

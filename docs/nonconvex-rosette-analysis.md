@@ -116,7 +116,7 @@ at the short tip" — visually right, structurally a T-junction.)
 
 2. **Wrong-topology optimizer solutions.** An earlier version of this doc
    recorded an unconstrained Nelder-Mead result (C = 53°, A = 97°,
-   BC/AB = 1.90) from `scripts/solve-nonconvex-tiling.mjs`. That is a valid
+   BC/AB = 1.90) from a since-deleted solver script. That is a valid
    tiling of a *different* pentagon that does not match the reference
    image's topology. Black-box gap minimization both drifts topology and
    cannot certify exactness; it is superseded by the linear method below.

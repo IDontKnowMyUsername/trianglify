@@ -10,34 +10,47 @@
 
 import trianglify from './trianglify'
 import * as colorFunctions from './utils/colorFunctions'
-import type { ColorFunction } from './types'
+import type { ColorFunction, ColorFunctionDescriptor, TrianglifyOptions } from './types'
 
 declare const self: DedicatedWorkerGlobalScope
 
 type ColorFunctionName = keyof typeof colorFunctions
 
-interface ColorFunctionDescriptor {
-  name: string
-  args?: unknown[]
+interface WorkerRequest {
+  id?: number
+  opts?: Omit<Partial<TrianglifyOptions>, 'colorFunction'> & {
+    colorFunction?: ColorFunctionDescriptor | ColorFunction | string
+  }
 }
 
 const resolveColorFunction = (descriptor: ColorFunctionDescriptor | ColorFunction | string | undefined): ColorFunction | undefined => {
-  if (!descriptor || typeof descriptor === 'function') return descriptor as ColorFunction | undefined
+  if (!descriptor) return undefined
+  if (typeof descriptor === 'function') return descriptor
   const { name, args = [] } = typeof descriptor === 'string'
     ? { name: descriptor, args: [] as unknown[] }
     : descriptor
+  // own-property check: inherited names like 'constructor' must not resolve
+  if (typeof name !== 'string' || !Object.hasOwn(colorFunctions, name)) {
+    throw new Error(`Unknown color function: ${String(name)}`)
+  }
   const factory = colorFunctions[name as ColorFunctionName]
-  if (!factory) throw new Error(`Unknown color function: ${name}`)
   return (factory as (...args: unknown[]) => ColorFunction)(...args)
 }
 
-self.onmessage = (e: MessageEvent) => {
-  const { id, opts } = e.data
+self.onmessage = (e: MessageEvent<WorkerRequest | null>) => {
+  // read the id defensively so a malformed message produces an error reply
+  // for its own request instead of an uncaught error that rejects every
+  // pending request via the client's onerror handler
+  const id = (e.data && typeof e.data === 'object') ? e.data.id : undefined
   try {
+    if (!e.data || typeof e.data !== 'object' || typeof e.data.id !== 'number') {
+      throw new Error('Malformed worker message: expected { id, opts }')
+    }
+    const opts = { ...e.data.opts }
     if (opts.colorFunction) {
       opts.colorFunction = resolveColorFunction(opts.colorFunction)
     }
-    const pattern = trianglify(opts)
+    const pattern = trianglify(opts as Partial<TrianglifyOptions>)
     self.postMessage({ id, data: pattern.toData() })
   } catch (err) {
     // non-Error throws (strings, objects) have no .message — stringify them

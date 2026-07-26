@@ -1,0 +1,30 @@
+# Publishes to npm with provenance when a GitHub release is published.
+# Requires an npm automation token stored as the NPM_TOKEN repository secret.
+# The prepublishOnly guard (pnpm run ci) runs automatically before publish.
+name: publish
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write # required for npm provenance
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v6
+    - name: Install pnpm
+      uses: pnpm/action-setup@v5
+    - uses: actions/setup-node@v6
+      with:
+        node-version: 22
+        cache: 'pnpm'
+        registry-url: 'https://registry.npmjs.org'
+    - run: pnpm install --frozen-lockfile
+    - run: pnpm publish --provenance --access public --no-git-checks
+      env:
+        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

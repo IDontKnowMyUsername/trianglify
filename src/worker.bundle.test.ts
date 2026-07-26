@@ -39,6 +39,7 @@ const bootWorker = () => {
     onmessage: null,
     postMessage: (msg) => { posted.push(msg) }
   }
+  // eslint-disable-next-line @typescript-eslint/no-implied-eval -- deliberately executing the built worker bundle in-process
   new Function('self', workerSource)(scope)
   const send = (id: number, opts: Record<string, unknown>) =>
     scope.onmessage!({ data: { id, opts } })

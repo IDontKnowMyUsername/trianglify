@@ -39,39 +39,61 @@ describe('Options Parsing', () => {
   test('should throw an error on unrecognized options', () => {
     expect(
       () => trianglify({ height: 100, width: 100, bad_option: true })
-    ).toThrow()
+    ).toThrow(/Unrecognized option/)
+  })
+
+  test('should throw an error on inherited object keys as options', () => {
+    expect(
+      () => trianglify({ toString: 'x' } as any)
+    ).toThrow(/Unrecognized option/)
   })
 
   test('should throw an error on invalid dimensions', () => {
     expect(
       () => trianglify({ height: 100, width: -1 })
-    ).toThrow()
+    ).toThrow(/invalid width/)
 
     expect(
       () => trianglify({ height: -1, width: 100 })
-    ).toThrow()
+    ).toThrow(/invalid height/)
   })
 
   test('should throw an error on invalid cellSize', () => {
-    expect(() => trianglify({ cellSize: 0 })).toThrow()
-    expect(() => trianglify({ cellSize: -1 })).toThrow()
-    expect(() => trianglify({ cellSize: 0.5 })).toThrow()
-    expect(() => trianglify({ cellSize: '40' as any })).toThrow()
-    expect(() => trianglify({ cellSize: 'abc' as any })).toThrow()
-    expect(() => trianglify({ cellSize: Infinity })).toThrow()
-    expect(() => trianglify({ cellSize: NaN })).toThrow()
+    expect(() => trianglify({ cellSize: 0 })).toThrow(/invalid cellSize/)
+    expect(() => trianglify({ cellSize: -1 })).toThrow(/invalid cellSize/)
+    expect(() => trianglify({ cellSize: 0.5 })).toThrow(/invalid cellSize/)
+    expect(() => trianglify({ cellSize: '40' as any })).toThrow(/invalid cellSize/)
+    expect(() => trianglify({ cellSize: 'abc' as any })).toThrow(/invalid cellSize/)
+    expect(() => trianglify({ cellSize: Infinity })).toThrow(/invalid cellSize/)
+    expect(() => trianglify({ cellSize: NaN })).toThrow(/invalid cellSize/)
   })
 
   test('should throw an error on invalid variance', () => {
-    expect(() => trianglify({ variance: -1 })).toThrow()
-    expect(() => trianglify({ variance: '0.5' as any })).toThrow()
-    expect(() => trianglify({ variance: NaN })).toThrow()
-    expect(() => trianglify({ variance: Infinity })).toThrow()
+    expect(() => trianglify({ variance: -1 })).toThrow(/invalid variance/)
+    expect(() => trianglify({ variance: '0.5' as any })).toThrow(/invalid variance/)
+    expect(() => trianglify({ variance: NaN })).toThrow(/invalid variance/)
+    expect(() => trianglify({ variance: Infinity })).toThrow(/invalid variance/)
   })
 
   test('should throw an error on invalid pointGeneration', () => {
-    expect(() => trianglify({ pointGeneration: 'invalid' as any })).toThrow()
-    expect(() => trianglify({ pointGeneration: '' as any })).toThrow()
+    expect(() => trianglify({ pointGeneration: 'invalid' as any })).toThrow(/invalid pointGeneration/)
+    expect(() => trianglify({ pointGeneration: '' as any })).toThrow(/invalid pointGeneration/)
+  })
+
+  test('should throw an error on invalid points', () => {
+    expect(() => trianglify({ points: 'nope' as any })).toThrow(/invalid points/)
+    expect(() => trianglify({ points: [[1, 2], [3]] as any })).toThrow(/invalid points entry/)
+    expect(() => trianglify({ points: [[1, NaN]] as any })).toThrow(/invalid points entry/)
+  })
+
+  test('should throw an error on invalid colorSpace, colorFunction, fill, strokeWidth, strokeColor, seed', () => {
+    expect(() => trianglify({ colorSpace: 'nope' as any })).toThrow(/invalid colorSpace/)
+    expect(() => trianglify({ colorFunction: 'nope' as any })).toThrow(/invalid colorFunction/)
+    expect(() => trianglify({ colorFunction: undefined })).toThrow(/invalid colorFunction/)
+    expect(() => trianglify({ fill: 'yes' as any })).toThrow(/invalid fill/)
+    expect(() => trianglify({ strokeWidth: -1 })).toThrow(/invalid strokeWidth/)
+    expect(() => trianglify({ strokeColor: 42 as any })).toThrow(/invalid strokeColor/)
+    expect(() => trianglify({ seed: {} as any })).toThrow(/invalid seed/)
   })
 
   test('should accept valid pointGeneration values', () => {
@@ -83,8 +105,8 @@ describe('Options Parsing', () => {
   })
 
   test('should throw an error on invalid shape', () => {
-    expect(() => trianglify({ shape: 'invalid' as any })).toThrow()
-    expect(() => trianglify({ shape: '' as any })).toThrow()
+    expect(() => trianglify({ shape: 'invalid' as any })).toThrow(/invalid shape/)
+    expect(() => trianglify({ shape: '' as any })).toThrow(/invalid shape/)
   })
 
   test('should accept valid shape values', () => {
@@ -95,12 +117,12 @@ describe('Options Parsing', () => {
   })
 
   test('should throw on invalid spiralDirection', () => {
-    expect(() => trianglify({ spiralDirection: 'invalid' as any })).toThrow()
+    expect(() => trianglify({ spiralDirection: 'invalid' as any })).toThrow(/invalid spiralDirection/)
   })
 
   test('should throw on invalid spiralRatio', () => {
-    expect(() => trianglify({ spiralRatio: 0 })).toThrow()
-    expect(() => trianglify({ spiralRatio: -1 })).toThrow()
+    expect(() => trianglify({ spiralRatio: 0 })).toThrow(/invalid spiralRatio/)
+    expect(() => trianglify({ spiralRatio: -1 })).toThrow(/invalid spiralRatio/)
   })
 })
 
@@ -139,11 +161,9 @@ describe('Pattern generation', () => {
     }).not.toThrow()
   })
 
-  test('should error on a names palette that does not exist', () => {
-    expect(() => {
-      trianglify({ xColors: 'Foo' })
-      trianglify({ yColors: 'Bar' })
-    }).toThrow()
+  test('should error on a named palette that does not exist', () => {
+    expect(() => trianglify({ xColors: 'Foo' })).toThrow(/Unrecognized color option/)
+    expect(() => trianglify({ yColors: 'Bar' })).toThrow(/Unrecognized color option/)
   })
 
   test('should generate well-formed geometry', () => {
@@ -262,18 +282,25 @@ describe('Pattern outputs in browser environment', () => {
       expect(destSVG.children).toHaveLength(pattern.polys.length)
       expect(destSVG).toMatchSnapshot()
     })
+
+    test('re-rendering into the same destSVG replaces content instead of appending', () => {
+      const destSVG = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+      const pattern = trianglify({ seed: 'destSVG works' })
+      pattern.toSVG(destSVG)
+      pattern.toSVG(destSVG)
+      expect(destSVG.children).toHaveLength(pattern.polys.length)
+    })
   })
 
   describe('#toSVGTree', () => {
-    const pattern = trianglify({ seed: 'foobar' })
-    const svgTree = pattern.toSVGTree()
+    const makeTree = () => trianglify({ seed: 'foobar' }).toSVGTree()
 
     test('returns a synthetic tree of object literals', () => {
-      expect(Object.keys(svgTree)).toEqual(['tagName', 'attrs', 'children', 'toString'])
+      expect(Object.keys(makeTree())).toEqual(['tagName', 'attrs', 'children', 'toString'])
     })
 
     test('serializes to an SVG string', () => {
-      expect(svgTree.toString()).toMatchSnapshot()
+      expect(makeTree().toString()).toMatchSnapshot()
     })
   })
 
@@ -283,7 +310,30 @@ describe('Pattern outputs in browser environment', () => {
       const canvas = pattern.toCanvas()
       expect(canvas).toBeInstanceOf(global.HTMLElement)
       expect(canvas.tagName).toEqual('CANVAS')
-      // there's not really any way to test the canvas contents here
+      // canvas pixel contents can't be asserted under jest-canvas-mock —
+      // the node suite covers real pixel verification
+    })
+
+    test('renders at devicePixelRatio scale with CSS scaling applied', () => {
+      const originalDPR = window.devicePixelRatio
+      Object.defineProperty(window, 'devicePixelRatio', { value: 2, configurable: true })
+      try {
+        const canvas = trianglify({ width: 100, height: 50, seed: 'hidpi' }).toCanvas()
+        expect(canvas.width).toBe(200)
+        expect(canvas.height).toBe(100)
+        expect(canvas.style.width).toBe('100px')
+        expect(canvas.style.height).toBe('50px')
+      } finally {
+        Object.defineProperty(window, 'devicePixelRatio', { value: originalDPR, configurable: true })
+      }
+    })
+
+    test('numeric scaling renders at the given ratio, without CSS scaling when disabled', () => {
+      const canvas = trianglify({ width: 100, height: 50, seed: 'hidpi' })
+        .toCanvas(undefined, { scaling: 2, applyCssScaling: false })
+      expect(canvas.width).toBe(200)
+      expect(canvas.height).toBe(100)
+      expect(canvas.style.width).toBe('')
     })
   })
 })

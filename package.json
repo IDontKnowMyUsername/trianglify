@@ -43,14 +43,14 @@
   },
   "scripts": {
     "lint": "eslint src/",
-    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
-    "test": "jest",
-    "test:coverage": "jest --coverage",
-    "build": "tsc -p tsconfig.build.json && rollup -c && node scripts/postbuild.mjs",
-    "dev": "rollup -c -w",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.worker.json && tsc --noEmit -p tsconfig.test.json",
+    "test": "node scripts/check-dist.mjs && jest",
+    "test:coverage": "node scripts/check-dist.mjs && jest --coverage",
+    "build": "node scripts/clean.mjs && tsc -p tsconfig.build.json && rollup -c && node scripts/postbuild.mjs",
+    "dev": "tsc -p tsconfig.build.json && rollup -c -w",
     "prepublishOnly": "pnpm run ci",
     "publish-beta": "pnpm run build && pnpm publish --tag next",
-    "lint:package": "publint && attw --pack . --ignore-rules cjs-resolves-to-esm",
+    "lint:package": "publint && attw --pack . --ignore-rules cjs-resolves-to-esm && tsc -p typetests",
     "ci": "pnpm run typecheck && pnpm run lint && pnpm run build && pnpm run lint:package && pnpm run test:coverage"
   },
   "dependencies": {
@@ -68,11 +68,9 @@
   "files": [
     "dist/",
     "Readme.md",
+    "changelog.txt",
     "LICENSE"
   ],
-  "directories": {
-    "example": "examples"
-  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/qrohlf/trianglify.git"

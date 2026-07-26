@@ -20,11 +20,14 @@ const licenseBanner = `/*!
  *   robust-predicates port © Vladimir Agafonkin — Unlicense
  */`
 
+const ts = (tsconfig = './tsconfig.json') => typescript({ tsconfig, declaration: false })
+const minify = () => terser({ format: { comments: 'some' } })
+
 export default [
   { // build for node & module bundlers (CJS + ESM)
     input: 'src/trianglify.ts',
     external: ['chroma-js'],
-    plugins: [resolve(), commonjs(), typescript({ tsconfig: './tsconfig.json', declaration: false }), bundleSize()],
+    plugins: [resolve(), commonjs(), ts(), bundleSize()],
     output: [
       {
         file: 'dist/trianglify.cjs',
@@ -48,27 +51,27 @@ export default [
     // the require('canvas') branch is unreachable in browsers
     input: 'src/trianglify.ts',
     external: ['chroma-js'],
-    plugins: [resolve({ browser: true }), commonjs(), typescript({ tsconfig: './tsconfig.json', declaration: false }), bundleSize()],
+    plugins: [resolve({ browser: true }), commonjs(), ts(), bundleSize()],
     output: { file: 'dist/trianglify.browser.mjs', format: 'es', sourcemap: true }
   },
   {
     // build minified bundle to be used standalone for browser use
     // note: // chroma.js weighs 40k minified, a smaller solution would be nice
     input: 'src/trianglify.ts',
-    plugins: [terser({ format: { comments: 'some' } }), resolve({ browser: true }), commonjs(), typescript({ tsconfig: './tsconfig.json', declaration: false }), bundleSize()],
-    output: { file: 'dist/trianglify.bundle.js', format: 'umd', name: 'trianglify', sourcemap: true, banner: licenseBanner }
+    plugins: [resolve({ browser: true }), commonjs(), ts(), bundleSize()],
+    output: { file: 'dist/trianglify.bundle.js', format: 'umd', name: 'trianglify', sourcemap: true, banner: licenseBanner, plugins: [minify()] }
   },
   {
     // build non-minified bundle to be used for debugging
     input: 'src/trianglify.ts',
-    plugins: [resolve({ browser: true }), commonjs(), typescript({ tsconfig: './tsconfig.json', declaration: false }), bundleSize()],
+    plugins: [resolve({ browser: true }), commonjs(), ts(), bundleSize()],
     output: { file: 'dist/trianglify.bundle.debug.js', format: 'umd', name: 'trianglify', sourcemap: true, banner: licenseBanner }
   },
   {
     // build minified web worker bundle for offloading pattern generation
     input: 'src/worker.ts',
-    plugins: [terser({ format: { comments: 'some' } }), resolve({ browser: true }), commonjs(), typescript({ tsconfig: './tsconfig.worker.json', declaration: false }), bundleSize()],
-    output: { file: 'dist/trianglify.worker.js', format: 'iife', sourcemap: true, banner: licenseBanner }
+    plugins: [resolve({ browser: true }), commonjs(), ts('./tsconfig.worker.json'), bundleSize()],
+    output: { file: 'dist/trianglify.worker.js', format: 'iife', sourcemap: true, banner: licenseBanner, plugins: [minify()] }
   },
   {
     // bundle type declarations into a single .d.ts file

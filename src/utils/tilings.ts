@@ -1,4 +1,4 @@
-import type { Point } from '../types'
+import type { Point, Shape } from '../types'
 
 export interface TilingResult {
   points: Point[]
@@ -318,7 +318,7 @@ function generateNonconvexTiling(width: number, height: number, cellSize: number
 
 // ─── Dispatcher ──────────────────────────────────────────────────
 
-export function generateTiling(shape: string, width: number, height: number, cellSize: number): TilingResult {
+export function generateTiling(shape: Shape, width: number, height: number, cellSize: number): TilingResult {
   switch (shape) {
     case 'pentagon-cairo': return generateCairoTiling(width, height, cellSize)
     case 'pentagon-convex': return generateConvexTiling(width, height, cellSize)

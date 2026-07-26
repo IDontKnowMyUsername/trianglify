@@ -18,14 +18,14 @@ import poissonDisc from './utils/poissonDisc'
 import bestCandidate from './utils/bestCandidate'
 import spiralPoints from './utils/spiral'
 import spherePoints from './utils/sphere'
-import * as geom from './utils/geom'
+import { getCentroid, getGridDensity } from './utils/geom'
 import * as colorFunctions from './utils/colorFunctions'
 import { generateRegularPolygon, getSidesForShape } from './utils/shapes'
 import { generateTiling } from './utils/tilings'
-import type { TrianglifyOptions, Polygon, Point, CSSColor, Shape } from './types'
-export type { TrianglifyOptions, RenderOpts, ColorFunctionParams, ColorFunction, CSSColor, Polygon, PatternData, SVGTreeNode, SVGOptions, CanvasOptions, Shape } from './types'
+import type { TrianglifyOptions, Polygon, Point, CSSColor, Centroid, Shape } from './types'
+export type { TrianglifyOptions, RenderOpts, ColorFunctionParams, ColorFunction, ColorFunctionDescriptor, CSSColor, Polygon, PatternData, SVGTreeNode, SVGOptions, CanvasOptions, Shape } from './types'
 
-const defaultOptions: TrianglifyOptions = {
+const defaultOptions: TrianglifyOptions = Object.freeze({
   width: 600,
   height: 400,
   cellSize: 75,
@@ -44,18 +44,17 @@ const defaultOptions: TrianglifyOptions = {
   shape: 'triangle',
   spiralDirection: 'ccw',
   spiralRatio: 'golden'
-}
+})
 
-// This function does the "core" render-independent work:
-//
-// 1. Parse and munge options
-// 2. Setup cell geometry
-// 3. Generate random points within cell geometry
-// 4. Use the Delaunator library to run the triangulation
-// 5. Do color interpolation to establish the fundamental coloring of the shapes
-function trianglify (_opts: Partial<TrianglifyOptions> = {}): Pattern {
+// Pentagon tiling shapes generate their complete geometry directly and
+// bypass the point-generation pipeline entirely
+const tilingShapes: Shape[] = ['pentagon-cairo', 'pentagon-convex', 'pentagon-nonconvex']
+
+const validColorSpaces: TrianglifyOptions['colorSpace'][] = ['rgb', 'hsv', 'hsl', 'hsi', 'lab', 'hcl']
+
+const validateOptions = (_opts: Partial<TrianglifyOptions>): TrianglifyOptions => {
   Object.keys(_opts).forEach(k => {
-    if (!(k in defaultOptions)) {
+    if (!Object.hasOwn(defaultOptions, k)) {
       throw TypeError(`Unrecognized option: ${k}`)
     }
   })
@@ -73,6 +72,27 @@ function trianglify (_opts: Partial<TrianglifyOptions> = {}): Pattern {
   if (typeof opts.variance !== 'number' || !isFinite(opts.variance) || opts.variance < 0) {
     throw TypeError(`invalid variance: ${opts.variance}`)
   }
+  if (opts.seed !== null && typeof opts.seed !== 'string' && typeof opts.seed !== 'number') {
+    throw TypeError(`invalid seed: ${String(opts.seed)}`)
+  }
+  if (typeof opts.palette !== 'object' || opts.palette === null) {
+    throw TypeError('invalid palette: expected a name→colors map or an array of color arrays')
+  }
+  if (!validColorSpaces.includes(opts.colorSpace)) {
+    throw TypeError(`invalid colorSpace: ${opts.colorSpace}`)
+  }
+  if (typeof opts.colorFunction !== 'function') {
+    throw TypeError(`invalid colorFunction: expected a function, got ${typeof opts.colorFunction}`)
+  }
+  if (typeof opts.fill !== 'boolean') {
+    throw TypeError(`invalid fill: ${String(opts.fill)}`)
+  }
+  if (typeof opts.strokeWidth !== 'number' || !isFinite(opts.strokeWidth) || opts.strokeWidth < 0) {
+    throw TypeError(`invalid strokeWidth: ${opts.strokeWidth}`)
+  }
+  if (opts.strokeColor !== null && typeof opts.strokeColor !== 'string') {
+    throw TypeError(`invalid strokeColor: ${String(opts.strokeColor)}`)
+  }
   const validPointGenerations = ['grid', 'poisson', 'bestCandidate', 'spiral', 'sphere']
   if (!validPointGenerations.includes(opts.pointGeneration)) {
     throw TypeError(`invalid pointGeneration: ${opts.pointGeneration}`)
@@ -88,6 +108,153 @@ function trianglify (_opts: Partial<TrianglifyOptions> = {}): Pattern {
   if (opts.spiralRatio !== 'golden' && (typeof opts.spiralRatio !== 'number' || !isFinite(opts.spiralRatio) || opts.spiralRatio <= 0)) {
     throw TypeError(`invalid spiralRatio: ${opts.spiralRatio}`)
   }
+  if (opts.points !== null) {
+    if (!Array.isArray(opts.points)) {
+      throw TypeError('invalid points: expected an array of [x, y] pairs')
+    }
+    for (const p of opts.points) {
+      if (!Array.isArray(p) || typeof p[0] !== 'number' || !isFinite(p[0]) || typeof p[1] !== 'number' || !isFinite(p[1])) {
+        throw TypeError(`invalid points entry: ${JSON.stringify(p)} (expected [x, y] with finite coordinates)`)
+      }
+    }
+    // tiling shapes generate their own geometry — reject custom points
+    // instead of silently ignoring them
+    if (tilingShapes.includes(opts.shape)) {
+      throw TypeError(`custom points are not supported for tiling shape: ${opts.shape}`)
+    }
+  }
+  return opts
+}
+
+type ColorPolyFn = (centroid: Centroid, vertexIndices: number[], vertices: Point[]) => CSSColor
+
+// Tiling pipeline: geometry comes fully formed from generateTiling
+const buildTilingPolys = (points: Point[], polyIndices: number[][], colorPoly: ColorPolyFn): Polygon[] => {
+  const polys: Polygon[] = []
+  for (const vertexIndices of polyIndices) {
+    const vertices = vertexIndices.map(i => points[i]!)
+    const centroid = getCentroid(vertices)
+    polys.push({ vertexIndices, centroid, color: colorPoly(centroid, vertexIndices, vertices) })
+  }
+  return polys
+}
+
+// Delaunay triangulation pipeline (original trianglify behavior)
+const buildTrianglePolys = (points: Point[], colorPoly: ColorPolyFn): Polygon[] => {
+  const polys: Polygon[] = []
+  const geomIndices = Delaunator.from(points).triangles
+
+  for (let i = 0; i < geomIndices.length; i += 3) {
+    const vertexIndices = [
+      geomIndices[i]!,
+      geomIndices[i + 1]!,
+      geomIndices[i + 2]!
+    ]
+
+    const vertices: [Point, Point, Point] = [
+      points[vertexIndices[0]!]!,
+      points[vertexIndices[1]!]!,
+      points[vertexIndices[2]!]!
+    ]
+
+    const centroid = getCentroid(vertices)
+    const color = colorPoly(centroid, vertexIndices, vertices)
+
+    polys.push({ vertexIndices, centroid, color })
+  }
+  return polys
+}
+
+// Regular N-gon / circle pipeline: primary shapes plus Delaunay gap fill.
+// Appends the generated shape vertices to `points` in place — the same
+// array the returned pattern and the color functions see.
+const buildShapePolys = (points: Point[], shape: Shape, cellSize: number, colorPoly: ColorPolyFn): Polygon[] => {
+  // For a regular N-gon, the apothem (center to edge midpoint) is
+  // circumradius * cos(PI/N). For flat edges to meet at the midpoint
+  // between grid centers: apothem = cellSize/2, giving
+  // circumradius = cellSize / (2 * cos(PI/N)).
+  // For circles, approximate as a high-sided polygon for gap computation
+  // but render as true circles.
+  const approxSides = shape === 'circle' ? 24 : getSidesForShape(shape)
+  if (approxSides === null) {
+    // unreachable: validateOptions plus the triangle/tiling branches exhaust
+    // every other shape
+    throw TypeError(`invalid shape: ${shape}`)
+  }
+  const polys: Polygon[] = []
+  const circumradius = cellSize / (2 * Math.cos(Math.PI / approxSides))
+  const centerCount = points.length
+
+  // Phase 1: Generate all polygon vertices and track which center owns each
+  const allVerts: Point[] = []
+  const vertexOwner: number[] = []
+
+  for (let i = 0; i < centerCount; i++) {
+    const center = points[i]!
+    const verts = generateRegularPolygon(center, approxSides, circumradius)
+    for (let v = 0; v < verts.length; v++) {
+      vertexOwner.push(i)
+      allVerts.push(verts[v]!)
+    }
+  }
+
+  // Append all polygon vertices to the shared points array
+  const vertexBase = points.length
+  for (let v = 0; v < allVerts.length; v++) {
+    points.push(allVerts[v]!)
+  }
+
+  // Phase 2: Create primary shape polys
+  for (let i = 0; i < centerCount; i++) {
+    const center = points[i]!
+    const start = i * approxSides
+    const centroid = { x: center[0], y: center[1] }
+
+    if (shape === 'circle') {
+      // Render as a true circle; vertices are only used for gap computation.
+      // Note: the color function receives empty vertexIndices/vertices here
+      const color = colorPoly(centroid, [], [])
+      polys.push({ vertexIndices: [], centroid, color, radius: circumradius })
+    } else {
+      const vertexIndices = Array.from({ length: approxSides }, (_, v) => vertexBase + start + v)
+      const verts = allVerts.slice(start, start + approxSides)
+      const color = colorPoly(centroid, vertexIndices, verts)
+      polys.push({ vertexIndices, centroid, color, radius: circumradius })
+    }
+  }
+
+  // Phase 3: Delaunay-triangulate all polygon vertices to find gap-filling
+  // triangles. Interior triangles (all 3 vertices from the same shape) are
+  // skipped; the remaining triangles fill the gaps between primary shapes.
+  const gapIndices = Delaunator.from(allVerts).triangles
+  for (let i = 0; i < gapIndices.length; i += 3) {
+    const a = gapIndices[i]!
+    const b = gapIndices[i + 1]!
+    const c = gapIndices[i + 2]!
+
+    // Skip interior triangles (all vertices belong to the same shape)
+    if (vertexOwner[a] === vertexOwner[b] && vertexOwner[b] === vertexOwner[c]) {
+      continue
+    }
+
+    const vi = [vertexBase + a, vertexBase + b, vertexBase + c]
+    const vertices: Point[] = [allVerts[a]!, allVerts[b]!, allVerts[c]!]
+    const centroid = getCentroid(vertices)
+    const color = colorPoly(centroid, vi, vertices)
+    polys.push({ vertexIndices: vi, centroid, color })
+  }
+  return polys
+}
+
+// This function does the "core" render-independent work:
+//
+// 1. Parse and munge options
+// 2. Setup cell geometry
+// 3. Generate random points within cell geometry
+// 4. Use the Delaunator library to run the triangulation
+// 5. Do color interpolation to establish the fundamental coloring of the shapes
+function trianglify (_opts: Partial<TrianglifyOptions> = {}): Pattern {
+  const opts = validateOptions(_opts)
 
   // standard randomizer, used for point gen and layout
   const rand = mulberry32(opts.seed)
@@ -129,14 +296,7 @@ function trianglify (_opts: Partial<TrianglifyOptions> = {}): Pattern {
   const xScale = chroma.scale(xColors).mode(opts.colorSpace)
   const yScale = chroma.scale(yColors).mode(opts.colorSpace)
 
-  // Pentagon tiling shapes generate their complete geometry below and
-  // bypass the point-generation pipeline entirely, so don't run it for
-  // them — and reject custom points instead of silently ignoring them
-  const tilingShapes: Shape[] = ['pentagon-cairo', 'pentagon-convex', 'pentagon-nonconvex']
   const isTilingShape = tilingShapes.includes(opts.shape)
-  if (isTilingShape && opts.points) {
-    throw TypeError(`custom points are not supported for tiling shape: ${opts.shape}`)
-  }
 
   // Our next step is to generate a pseudo-random grid of {x, y} points,
   // (or to simply utilize the points that were passed to us)
@@ -147,7 +307,7 @@ function trianglify (_opts: Partial<TrianglifyOptions> = {}): Pattern {
 
   // For hexagons with grid layout, offset alternating rows for honeycomb tiling
   if (opts.shape === 'hexagon' && opts.pointGeneration === 'grid' && !opts.points) {
-    const colCount = Math.floor(opts.width / opts.cellSize) + 4
+    const { colCount } = getGridDensity(opts.width, opts.height, opts.cellSize)
     points = points.map((p, i) => {
       const row = Math.floor(i / colCount)
       return row % 2 === 1 ? [p[0] + opts.cellSize / 2, p[1]] : p
@@ -158,11 +318,10 @@ function trianglify (_opts: Partial<TrianglifyOptions> = {}): Pattern {
   // swapping out color functions doesn't change the pattern geometry itself
   const salt = 42
   const cRand = mulberry32(opts.seed != null ? String(opts.seed) + salt : null)
-  const polys: Polygon[] = []
   const { width, height, shape } = opts
   const norm = (num: number) => Math.max(0, Math.min(1, num))
 
-  const colorPoly = (centroid: { x: number; y: number }, vertexIndices: number[], vertices: Point[]): CSSColor => {
+  const colorPoly: ColorPolyFn = (centroid, vertexIndices, vertices) => {
     const xPercent = norm(centroid.x / width)
     const yPercent = norm(centroid.y / height)
 
@@ -186,110 +345,14 @@ function trianglify (_opts: Partial<TrianglifyOptions> = {}): Pattern {
   if (isTilingShape) {
     const tiling = generateTiling(shape, width, height, opts.cellSize)
     points = tiling.points
-    for (const vertexIndices of tiling.polys) {
-      const vertices = vertexIndices.map(i => points[i]!)
-      const centroid = geom.getCentroid(vertices)
-      const color = colorPoly(centroid, vertexIndices, vertices)
-      polys.push({ vertexIndices, centroid, color })
-    }
-    return new Pattern(points, polys, opts)
+    return new Pattern(points, buildTilingPolys(points, tiling.polys, colorPoly), opts)
   }
-
-  const sides = getSidesForShape(shape)
 
   if (shape === 'triangle') {
-    // Delaunay triangulation pipeline (original behavior)
-    const geomIndices = Delaunator.from(points).triangles
-
-    for (let i = 0; i < geomIndices.length; i += 3) {
-      const vertexIndices = [
-        geomIndices[i]!,
-        geomIndices[i + 1]!,
-        geomIndices[i + 2]!
-      ]
-
-      const vertices: [Point, Point, Point] = [
-        points[vertexIndices[0]!]!,
-        points[vertexIndices[1]!]!,
-        points[vertexIndices[2]!]!
-      ]
-
-      const centroid = geom.getCentroid(vertices)
-      const color = colorPoly(centroid, vertexIndices, vertices)
-
-      polys.push({ vertexIndices, centroid, color })
-    }
-  } else if (shape === 'circle' || sides !== null) {
-    // For a regular N-gon, the apothem (center to edge midpoint) is
-    // circumradius * cos(PI/N). For flat edges to meet at the midpoint
-    // between grid centers: apothem = cellSize/2, giving
-    // circumradius = cellSize / (2 * cos(PI/N)).
-    // For circles, approximate as a high-sided polygon for gap computation
-    // but render as true circles.
-    const approxSides = shape === 'circle' ? 24 : sides!
-    const circumradius = opts.cellSize / (2 * Math.cos(Math.PI / approxSides))
-    const centerCount = points.length
-
-    // Phase 1: Generate all polygon vertices and track which center owns each
-    const allVerts: Point[] = []
-    const vertexOwner: number[] = []
-
-    for (let i = 0; i < centerCount; i++) {
-      const center = points[i]!
-      const verts = generateRegularPolygon(center, approxSides, circumradius)
-      for (let v = 0; v < verts.length; v++) {
-        vertexOwner.push(i)
-        allVerts.push(verts[v]!)
-      }
-    }
-
-    // Append all polygon vertices to the shared points array
-    const vertexBase = points.length
-    for (let v = 0; v < allVerts.length; v++) {
-      points.push(allVerts[v]!)
-    }
-
-    // Phase 2: Create primary shape polys
-    for (let i = 0; i < centerCount; i++) {
-      const center = points[i]!
-      const start = i * approxSides
-      const centroid = { x: center[0], y: center[1] }
-
-      if (shape === 'circle') {
-        // Render as a true circle; vertices are only used for gap computation
-        const color = colorPoly(centroid, [], [])
-        polys.push({ vertexIndices: [], centroid, color, radius: circumradius })
-      } else {
-        const vertexIndices = Array.from({ length: approxSides }, (_, v) => vertexBase + start + v)
-        const verts = allVerts.slice(start, start + approxSides)
-        const color = colorPoly(centroid, vertexIndices, verts)
-        polys.push({ vertexIndices, centroid, color, radius: circumradius })
-      }
-    }
-
-    // Phase 3: Delaunay-triangulate all polygon vertices to find gap-filling
-    // triangles. Interior triangles (all 3 vertices from the same shape) are
-    // skipped; the remaining triangles fill the gaps between primary shapes.
-    const gapIndices = Delaunator.from(allVerts).triangles
-    for (let i = 0; i < gapIndices.length; i += 3) {
-      const a = gapIndices[i]!
-      const b = gapIndices[i + 1]!
-      const c = gapIndices[i + 2]!
-
-      // Skip interior triangles (all vertices belong to the same shape)
-      if (vertexOwner[a] === vertexOwner[b] && vertexOwner[b] === vertexOwner[c]) {
-        continue
-      }
-
-      const vi = [vertexBase + a, vertexBase + b, vertexBase + c]
-      const vertices: Point[] = [allVerts[a]!, allVerts[b]!, allVerts[c]!]
-      const centroid = geom.getCentroid(vertices)
-      const color = colorPoly(centroid, vi, vertices)
-      polys.push({ vertexIndices: vi, centroid, color })
-    }
+    return new Pattern(points, buildTrianglePolys(points, colorPoly), opts)
   }
 
-  return new Pattern(points, polys, opts)
+  return new Pattern(points, buildShapePolys(points, shape, opts.cellSize, colorPoly), opts)
 }
 
 const getPoints = (opts: TrianglifyOptions, random: () => number): Point[] => {
@@ -319,8 +382,7 @@ const getGridPoints = (
 ): Point[] => {
   // pad by 2 cells outside the visible area on each side to ensure we fully
   // cover the 'artboard'
-  const colCount = Math.floor(width / cellSize) + 4
-  const rowCount = Math.floor(height / cellSize) + 4
+  const { colCount, rowCount, pointCount } = getGridDensity(width, height, cellSize)
 
   // determine bleed values to ensure that the grid is centered within the
   // artboard
@@ -330,8 +392,6 @@ const getGridPoints = (
   // apply variance to cellSize to get cellJitter in pixels
   const cellJitter = cellSize * variance
   const getJitter = () => (random() - 0.5) * cellJitter
-
-  const pointCount = colCount * rowCount
 
   const halfCell = cellSize / 2
 
@@ -350,6 +410,7 @@ const getGridPoints = (
 
 export default Object.assign(trianglify, {
   utils: {
+    // eslint-disable-next-line @typescript-eslint/unbound-method -- chroma.mix is a plain function that never reads `this`
     mix: chroma.mix,
     colorbrewer
   },

@@ -1,3 +1,4 @@
+import { getGridDensity } from './geom'
 import type { Point } from '../types'
 
 const PHI = (1 + Math.sqrt(5)) / 2
@@ -27,7 +28,7 @@ export default function spiral(
   const dirSign = direction === 'cw' ? -1 : 1
 
   // Target point count: match density of the grid algorithm
-  const targetCount = (Math.floor(width / cellSize) + 4) * (Math.floor(height / cellSize) + 4)
+  const targetCount = getGridDensity(width, height, cellSize).pointCount
 
   // Scale factor: the outermost point should reach the corner of the padded area
   const maxRadius = Math.sqrt((cx + pad) ** 2 + (cy + pad) ** 2)

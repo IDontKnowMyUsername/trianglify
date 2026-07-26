@@ -28,6 +28,25 @@ Include it in your application via the unpkg CDN:
 
 Or download a .zip from the [**releases page**](https://github.com/qrohlf/trianglify/releases).
 
+## Module formats & TypeScript
+
+Trianglify ships several builds, selected automatically via the package `exports` map:
+
+| How you load it | File served | Notes |
+|---|---|---|
+| `import trianglify from 'trianglify'` (bundlers) | `dist/trianglify.browser.mjs` | ESM for Vite/webpack/etc., `chroma-js` deduped by your bundler |
+| `import trianglify from 'trianglify'` (Node ESM) | `dist/trianglify.mjs` | ESM for Node |
+| `require('trianglify')` | `dist/trianglify.cjs` | CommonJS for Node |
+| `<script src=…>` | `dist/trianglify.bundle.js` | Minified UMD with all dependencies included (`.bundle.debug.js` is the unminified variant) |
+| `'trianglify/worker'` | `dist/trianglify.worker.js` | Web Worker script, see [TrianglifyWorker](#trianglifyworker) |
+
+TypeScript definitions are bundled — `dist/trianglify.d.ts` for ESM consumers and `dist/trianglify.d.cts` for CommonJS — so no `@types` package is needed, and option/result types are importable:
+
+```ts
+import trianglify, { type TrianglifyOptions } from 'trianglify'
+```
+
+Node >= 18 is required. `chroma-js` is a regular dependency; `canvas` is an optional peer dependency needed only for `toCanvas()`/PNG output in Node.
 
 # 🏎 Quickstart
 
@@ -59,7 +78,7 @@ canvas.createPNGStream().pipe(file)
 
 Note: `toCanvas()` in Node requires the optional [node-canvas](https://github.com/Automattic/node-canvas) peer dependency (`pnpm add canvas`). SVG output via `toSVG()`/`toSVGTree()` works without it.
 
-You can see the [`examples/`](./examples) folder for more usage examples.
+You can see the [`examples/`](./examples) folder for more usage examples, and the [`docs/`](./docs) folder for design notes (including the exact pentagonal-tiling geometry derivations).
 
 The https://trianglify.io/ GUI is a good place to play around with the various configuration parameters and see their effect on the generated output, live.
 
@@ -130,7 +149,7 @@ pattern.polys[0].color
 
 Rendering function for SVG. In browser or browser-like (e.g. JSDOM) environments, this will return a SVGElement DOM node. In node environments, this will return a lightweight node tree structure that can be serialized to a valid SVG string using the `toString()` function.
 
-If an existing svg element is passed as the `destSVG`, this function will render the pattern to the pre-existing element instead of creating a new one.
+If an existing svg element is passed as the `destSVG`, this function will render the pattern to the pre-existing element instead of creating a new one, replacing any content it already has — so re-rendering into the same element in a loop is safe.
 
 The `svgOpts` option allows for some svg-specific customizations to the output:
 
@@ -182,9 +201,19 @@ const canvasOpts = {
 }
 ```
 
+The defaults shown above apply in browsers. In Node the defaults are `scaling: false, applyCssScaling: false` — the canvas is rendered at exactly `width` × `height`.
+
 **`pattern.toData()`** / **`trianglify.Pattern.fromData(data)`**
 
 `pattern.toData()` serializes the pattern to a plain object (colors become CSS strings) that survives `JSON.stringify` or `postMessage`. `trianglify.Pattern.fromData(data)` reconstructs a renderable `Pattern` from that data. This is useful for caching generated patterns, and it is how the Web Worker support (below) transfers patterns between threads.
+
+**`trianglify.defaultOptions`**
+
+The (frozen) default options object — see [Configuration](#-configuration).
+
+**`trianglify.utils.mix`** / **`trianglify.utils.colorbrewer`**
+
+Re-exports of chroma-js's `mix()` and the built-in colorbrewer palette map, handy when writing custom palettes and color functions.
 
 ## TrianglifyWorker
 
@@ -198,6 +227,16 @@ pattern.toCanvas(myCanvas)
 
 worker.terminate() // when you're done with it
 ```
+
+The constructor accepts a script URL/path (plus optional `WorkerOptions`), or a pre-constructed `Worker` — useful with bundlers:
+
+```js
+const worker = new trianglify.TrianglifyWorker(
+  new Worker(new URL('trianglify/worker', import.meta.url))
+)
+```
+
+See [`examples/web-worker-example.html`](./examples/web-worker-example.html) for a runnable demo.
 
 **`worker.generate(options, { signal })`**
 
@@ -286,7 +325,15 @@ String, defaults to `'lab'`. Set the color space used for generating gradients. 
 
 Specify a custom function for coloring polygons, defaults to `trianglify.colorFunctions.interpolateLinear(0.5)`. Accepts a function to override the standard gradient coloring, which is passed a variety of data about the pattern and each polygon and must return a Chroma.js color object.
 
-The built-in color functions are `interpolateLinear(bias)`, `sparkle(intensity)`, `shadows(intensity)`, `radial()`, and `angular()`, all available on `trianglify.colorFunctions`.
+The built-in color functions, all available on `trianglify.colorFunctions`:
+
+- `interpolateLinear(bias = 0.5)` — the default; `bias` controls how prevalent the y axis is versus the x axis
+- `sparkle(jitterFactor = 0.15)` — random noise in the gradients for higher cell contrast
+- `shadows(shadowIntensity = 0.8)` — randomly darkens cells
+- `radial(falloff = 1)` — colors by distance from center; `falloff` shapes the curve (`< 1` concentrates color near the center, `> 1` at the edges)
+- `angular(offset = 0)` — colors by angle around the center, rotated by `offset` radians
+
+Note: for `shape: 'circle'`, the color function receives empty `vertexIndices`/`vertices` arrays — circles carry no vertex geometry, so custom color functions should rely on `centroid` instead.
 
 See [`examples/color-function-example.html`](./examples/color-function-example.html) and [`src/utils/colorFunctions.ts`](./src/utils/colorFunctions.ts) for more information about the built-in color functions, and how to write custom color functions.
 

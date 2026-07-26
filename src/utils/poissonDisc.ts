@@ -24,7 +24,7 @@ export default function poissonDisc(
 
   const gridW = Math.ceil(domainW / cellSize)
   const gridH = Math.ceil(domainH / cellSize)
-  const grid: (number | null)[] = new Array(gridW * gridH).fill(null)
+  const grid = new Array<number | null>(gridW * gridH).fill(null)
 
   const points: Point[] = []
   const active: number[] = []
@@ -100,7 +100,9 @@ export default function poissonDisc(
     }
   }
 
-  // apply post-sampling jitter controlled by variance
+  // apply post-sampling jitter controlled by variance — note this can push
+  // point pairs slightly below the minDistance the sampler just enforced,
+  // so the output is only strictly Poisson-disc at variance 0
   if (variance > 0) {
     const jitterAmount = minDistance * variance * 0.25
     for (let i = 0; i < points.length; i++) {

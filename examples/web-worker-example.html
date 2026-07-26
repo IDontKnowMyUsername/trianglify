@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Trianglify Web Worker Example</title>
+    <!-- NOTE: run `pnpm run build` first, and serve this page over HTTP
+         (workers can't be loaded from file:// URLs) — e.g. `npx serve .`
+         from the repo root, then open /examples/web-worker-example.html -->
+    <script src="../dist/trianglify.bundle.debug.js"></script>
+    <style>
+      body { margin: 0; font-family: sans-serif }
+      #status { padding: 8px }
+      canvas { display: block }
+    </style>
+  </head>
+  <body>
+    <div id="status">generating in worker…</div>
+    <canvas id="target"></canvas>
+    <script>
+      const worker = new trianglify.TrianglifyWorker('../dist/trianglify.worker.js')
+      const canvas = document.getElementById('target')
+      const status = document.getElementById('status')
+
+      // generation happens off the main thread; the pattern comes back as
+      // plain data and is rehydrated via Pattern.fromData under the hood
+      worker.generate({
+        width: window.innerWidth,
+        height: 400,
+        cellSize: 40,
+        seed: 'worker-example',
+        colorFunction: trianglify.colorFunctions.sparkle(0.2)
+      }).then(pattern => {
+        pattern.toCanvas(canvas)
+        status.textContent = 'rendered from a worker-generated pattern — the main thread never blocked'
+      }).catch(err => {
+        status.textContent = 'worker error: ' + err.message
+      }).finally(() => {
+        worker.terminate()
+      })
+    </script>
+  </body>
+</html>

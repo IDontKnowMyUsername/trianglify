@@ -79,7 +79,10 @@ const reflexCount = (verts: number[][]): number => {
 
 for (const shape of TILING_SHAPES) {
   describe(`${shape} tiling`, () => {
-    const pattern = generate(shape)
+    // generate inside the test lifecycle so a throw fails these tests with
+    // a real error instead of a suite-level collection error
+    let pattern: any
+    beforeAll(() => { pattern = generate(shape) })
 
     test('generates a Pattern of pentagons', () => {
       expect(pattern).toBeInstanceOf(Pattern)

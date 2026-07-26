@@ -12,3 +12,14 @@ export const getCentroid = (d: Point[]): Centroid => {
   }
   return { x: x / n, y: y / n }
 }
+
+// Cell-grid density shared by every point generator: a padded grid with two
+// extra cells on each side of the artboard. All non-grid generators emit the
+// same number of points so pointGeneration modes are interchangeable at a
+// given cellSize, and the hexagon honeycomb offset relies on colCount
+// matching the grid layout exactly.
+export const getGridDensity = (width: number, height: number, cellSize: number): { colCount: number; rowCount: number; pointCount: number } => {
+  const colCount = Math.floor(width / cellSize) + 4
+  const rowCount = Math.floor(height / cellSize) + 4
+  return { colCount, rowCount, pointCount: colCount * rowCount }
+}

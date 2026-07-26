@@ -1,3 +1,4 @@
+import { getGridDensity } from './geom'
 import type { Point } from '../types'
 
 /**
@@ -19,18 +20,18 @@ export default function bestCandidate(
   const domainW = width + 2 * pad
   const domainH = height + 2 * pad
 
-  // match grid point count: (floor(w/cellSize) + 4) * (floor(h/cellSize) + 4)
-  const targetCount = (Math.floor(width / cellSize) + 4) * (Math.floor(height / cellSize) + 4)
+  // match the grid layout's point count
+  const targetCount = getGridDensity(width, height, cellSize).pointCount
 
-  // variance maps to candidate count: low variance = many candidates (uniform),
-  // high variance = few candidates (random)
-  const numCandidates = Math.max(1, Math.round(30 * (1 - variance) + 1 * variance))
+  // variance maps to candidate count, interpolating from 30 (variance 0,
+  // near-uniform) down to 1 (variance 1, fully random)
+  const numCandidates = Math.max(1, Math.round(30 - 29 * variance))
 
   // spatial grid for fast nearest-neighbor lookup
   const gridCellSize = cellSize
   const gridW = Math.ceil(domainW / gridCellSize)
   const gridH = Math.ceil(domainH / gridCellSize)
-  const grid: (number[] | null)[] = new Array(gridW * gridH).fill(null)
+  const grid = new Array<number[] | null>(gridW * gridH).fill(null)
 
   const points: Point[] = []
 

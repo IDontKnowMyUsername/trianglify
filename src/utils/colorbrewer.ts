@@ -1,7 +1,9 @@
 /*
  * colorbrewer.js
  *
- * Colorbrewer colors, by Cindy Brewer
+ * ColorBrewer color specifications © Cynthia Brewer, Mark Harrower,
+ * and The Pennsylvania State University — Apache-2.0
+ * https://colorbrewer2.org
  */
 
 const colorbrewer: Record<string, string[]> = {

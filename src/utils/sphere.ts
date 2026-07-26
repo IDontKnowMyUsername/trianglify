@@ -1,12 +1,15 @@
+import { getGridDensity } from './geom'
 import type { Point } from '../types'
 
 const PHI = (1 + Math.sqrt(5)) / 2
 const GOLDEN_ANGLE = 2 * Math.PI / (PHI * PHI)
 
 /**
- * Fibonacci sphere point generation with orthographic 2D projection.
- * Distributes points evenly on a sphere surface, then projects
- * onto the canvas plane.
+ * Fibonacci-sphere point generation with orthographic 2D projection.
+ * Samples points uniformly on a sphere, then drops the z component to
+ * project onto the canvas plane — front and back hemispheres land on the
+ * same disk, so planar density concentrates toward the horizontal extremes.
+ * An aesthetic layout, not a uniform 2D distribution.
  */
 export default function sphere(
   width: number,
@@ -20,7 +23,7 @@ export default function sphere(
   const cy = height / 2
 
   // Target point count: match density of grid algorithm
-  const targetCount = (Math.floor(width / cellSize) + 4) * (Math.floor(height / cellSize) + 4)
+  const targetCount = getGridDensity(width, height, cellSize).pointCount
 
   // Sphere radius: √2 × the padded half-extents — a projected disk merely
   // inscribed in the padded rect leaves the canvas corners un-triangulated
