@@ -305,21 +305,28 @@ const buildShapePolys = (points: Point[], shape: RegularPolygonShape | 'circle',
   // just one copy — index ownership alone would misclassify shape
   // interiors as gaps. A triangle whose three corner positions share any
   // owner lies inside that (convex) shape, so skipping it is always safe.
+  // Each vertex's owner list is resolved once here rather than per triangle
+  // corner (a vertex is a corner of ~6 Delaunay triangles). Storing the
+  // shared array reference is what makes the single pass sound: owners
+  // appended by later vertices at the same position mutate the same array.
   const posKey = (p: Point): string => `${Math.round(p[0] * 1e6)},${Math.round(p[1] * 1e6)}`
   const posOwners = new Map<string, number[]>()
+  const ownersByVertex: number[][] = new Array<number[]>(allVerts.length)
   for (let v = 0; v < allVerts.length; v++) {
     const key = posKey(allVerts[v]!)
-    const owners = posOwners.get(key)
+    let owners = posOwners.get(key)
     if (owners) {
       owners.push(vertexOwner[v]!)
     } else {
-      posOwners.set(key, [vertexOwner[v]!])
+      owners = [vertexOwner[v]!]
+      posOwners.set(key, owners)
     }
+    ownersByVertex[v] = owners
   }
   const shareOwner = (a: number, b: number, c: number): boolean => {
-    const ownersA = posOwners.get(posKey(allVerts[a]!))!
-    const ownersB = posOwners.get(posKey(allVerts[b]!))!
-    const ownersC = posOwners.get(posKey(allVerts[c]!))!
+    const ownersA = ownersByVertex[a]!
+    const ownersB = ownersByVertex[b]!
+    const ownersC = ownersByVertex[c]!
     return ownersA.some(o => ownersB.includes(o) && ownersC.includes(o))
   }
 

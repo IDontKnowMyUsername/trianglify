@@ -31,21 +31,41 @@ const bleed = 2
 function deduplicateVertices(rawPolys: Point[][]): TilingResult {
   const EPSILON = 1e-4
   const factor = 1 / EPSILON
-  const vertMap = new Map<string, number>()
+  // two-level numeric map (qx → qy → index) instead of string keys: getIndex
+  // runs once per raw vertex and dominated tiling generation when every
+  // probe allocated a template string
+  const vertMap = new Map<number, Map<number, number>>()
   const points: Point[] = []
 
   const getIndex = (p: Point): number => {
-    const qx = Math.round(p[0] * factor)
-    const qy = Math.round(p[1] * factor)
-    // search the 3×3 bucket neighborhood: two float representations of
-    // the same lattice vertex can round into adjacent buckets, which
+    const x = p[0]
+    const y = p[1]
+    const qx = Math.round(x * factor)
+    const qy = Math.round(y * factor)
+    // probe the home bucket first — duplicates land there unless a float
+    // representation rounds across a bucket boundary
+    const homeCol = vertMap.get(qx)
+    if (homeCol) {
+      const idx = homeCol.get(qy)
+      if (idx !== undefined) {
+        const [ex, ey] = points[idx]!
+        if (Math.abs(ex - x) < EPSILON && Math.abs(ey - y) < EPSILON) {
+          return idx
+        }
+      }
+    }
+    // fall back to the 3×3 bucket neighborhood: two float representations
+    // of the same lattice vertex can round into adjacent buckets, which
     // would split one vertex into two indices
     for (let dx = -1; dx <= 1; dx++) {
+      const col = dx === 0 ? homeCol : vertMap.get(qx + dx)
+      if (!col) continue
       for (let dy = -1; dy <= 1; dy++) {
-        const idx = vertMap.get(`${qx + dx},${qy + dy}`)
+        if (dx === 0 && dy === 0) continue
+        const idx = col.get(qy + dy)
         if (idx !== undefined) {
           const [ex, ey] = points[idx]!
-          if (Math.abs(ex - p[0]) < EPSILON && Math.abs(ey - p[1]) < EPSILON) {
+          if (Math.abs(ex - x) < EPSILON && Math.abs(ey - y) < EPSILON) {
             return idx
           }
         }
@@ -53,7 +73,11 @@ function deduplicateVertices(rawPolys: Point[][]): TilingResult {
     }
     const idx = points.length
     points.push(p)
-    vertMap.set(`${qx},${qy}`, idx)
+    if (homeCol) {
+      homeCol.set(qy, idx)
+    } else {
+      vertMap.set(qx, new Map([[qy, idx]]))
+    }
     return idx
   }
 
