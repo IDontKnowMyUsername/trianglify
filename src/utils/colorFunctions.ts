@@ -1,4 +1,4 @@
-import chroma from 'chroma-js'
+import { mix, darken } from './colorBackend'
 import type { ColorFunction, ColorFunctionParams } from '../types'
 
 // Built in color functions provided for your convenience.
@@ -21,7 +21,7 @@ import type { ColorFunction, ColorFunctionParams } from '../types'
  */
 export const interpolateLinear = (bias = 0.5): ColorFunction => {
   const fn: ColorFunction = ({ xPercent, yPercent, xScale, yScale, opts }: ColorFunctionParams) =>
-    chroma.mix(xScale(xPercent), yScale(yPercent), bias, opts.colorSpace)
+    mix(xScale(xPercent), yScale(yPercent), bias, opts.colorSpace)
   fn._descriptor = { name: 'interpolateLinear', args: [bias] }
   return fn
 }
@@ -36,7 +36,7 @@ export const sparkle = (jitterFactor = 0.15): ColorFunction => {
     const jitter = () => (random() - 0.5) * jitterFactor
     const a = xScale(xPercent + jitter())
     const b = yScale(yPercent + jitter())
-    return chroma.mix(a, b, 0.5, opts.colorSpace)
+    return mix(a, b, 0.5, opts.colorSpace)
   }
   fn._descriptor = { name: 'sparkle', args: [jitterFactor] }
   return fn
@@ -51,8 +51,8 @@ export const shadows = (shadowIntensity = 0.8): ColorFunction => {
   const fn: ColorFunction = ({ xPercent, yPercent, xScale, yScale, opts, random }: ColorFunctionParams) => {
     const a = xScale(xPercent)
     const b = yScale(yPercent)
-    const color = chroma.mix(a, b, 0.5, opts.colorSpace)
-    return color.darken(shadowIntensity * random())
+    const color = mix(a, b, 0.5, opts.colorSpace)
+    return darken(color, shadowIntensity * random())
   }
   fn._descriptor = { name: 'shadows', args: [shadowIntensity] }
   return fn

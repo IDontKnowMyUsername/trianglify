@@ -1,7 +1,36 @@
-import type { Color, Scale } from 'chroma-js'
-
 /** An `[x, y]` coordinate pair. */
 export type Point = [number, number]
+
+/**
+ * A color value as passed between scales, color functions, and the
+ * serializer: a culori-compatible plain object carrying a color-space tag
+ * and numeric channels, e.g. `{ mode: 'oklch', l: 0.7, c: 0.1, h: 240 }`.
+ * Treat colors returned by scales as immutable — they may be shared cache
+ * entries (see `colorQuantization`).
+ */
+export interface PatternColor {
+  mode: string
+  alpha?: number
+  [channel: string]: string | number | undefined
+}
+
+/**
+ * Color spaces available for gradient interpolation. `'lab'` and `'hcl'`
+ * interpolate CIELAB / CIELCh with a D65 whitepoint; `'oklab'`/`'oklch'`
+ * are the perceptually-uniform CSS Color 4 spaces.
+ */
+export type ColorSpace = 'rgb' | 'hsv' | 'hsl' | 'hsi' | 'lab' | 'hcl' | 'oklab' | 'oklch'
+
+/**
+ * Output format for polygon color strings:
+ * - `'rgb'` — 8-bit `rgb(r g b)`, gamut-clamped to sRGB (works everywhere)
+ * - `'oklch'` — decimal-precision `oklch(…)` strings (browsers map to the display's gamut)
+ * - `'display-p3'` — `color(display-p3 …)` strings, gamut-clamped to P3
+ *
+ * Wide-gamut formats render in SVG and browser canvas; node-canvas cannot
+ * parse them, so `toCanvas()` throws in Node for non-`'rgb'` output.
+ */
+export type ColorOutput = 'rgb' | 'oklch' | 'display-p3'
 
 /**
  * The three exact pentagonal tilings. These generate their complete plane
@@ -80,12 +109,28 @@ export interface TrianglifyOptions {
    * Default: the bundled colorbrewer palettes (`trianglify.utils.colorbrewer`).
    */
   palette: Record<string, string[]> | string[][]
-  /** Color space used for gradient interpolation. Default: `'lab'`. */
-  colorSpace: 'rgb' | 'hsv' | 'hsl' | 'hsi' | 'lab' | 'hcl'
+  /** Color space used for gradient interpolation — see {@link ColorSpace}. Default: `'lab'`. */
+  colorSpace: ColorSpace
+  /**
+   * Output format for polygon color strings — see {@link ColorOutput}.
+   * Default: `'rgb'`.
+   */
+  colorOutput: ColorOutput
+  /**
+   * Number of steps the x/y color scales are quantized to (scale lookups
+   * snap to a t-grid of this many steps and are cached, which speeds up
+   * generation substantially). `'auto'` derives the step count from
+   * `colorOutput` (256 for `'rgb'`, 1024 for wide-gamut formats) so the
+   * quantization error stays at or below the output format's own
+   * precision; `false` disables quantization for exact scale evaluation.
+   * Default: `'auto'`.
+   */
+  colorQuantization: number | false | 'auto'
   /**
    * Function used to color each polygon — receives
-   * {@link ColorFunctionParams} and returns a chroma-js color. The built-ins
-   * live on `trianglify.colorFunctions`.
+   * {@link ColorFunctionParams} and returns a {@link PatternColor} (or a
+   * finished CSS color string, which is emitted as-is). The built-ins live
+   * on `trianglify.colorFunctions`.
    * Default: `trianglify.colorFunctions.interpolateLinear(0.5)`.
    */
   colorFunction: ColorFunction
@@ -146,10 +191,14 @@ export interface ColorFunctionParams {
   vertexIndices: number[]
   /** The polygon's corner coordinates (empty for `shape: 'circle'`). */
   vertices: Point[]
-  /** chroma-js scale built from the resolved `xColors`. */
-  xScale: Scale
-  /** chroma-js scale built from the resolved `yColors`. */
-  yScale: Scale
+  /**
+   * Gradient over the resolved `xColors`: maps t ∈ [0, 1] to a color
+   * (out-of-range t clamps to the gradient ends). Subject to
+   * `colorQuantization` — treat returned colors as immutable.
+   */
+  xScale: (t: number) => PatternColor
+  /** Gradient over the resolved `yColors` — same contract as `xScale`. */
+  yScale: (t: number) => PatternColor
   /** The full point layout of the pattern. */
   points: Point[]
   /** The validated options the pattern is being generated with. */
@@ -174,11 +223,12 @@ export interface ColorFunctionDescriptor {
 
 /**
  * A polygon-coloring function: receives {@link ColorFunctionParams} and
- * returns a chroma-js color. Built-in color functions carry a
- * `_descriptor` so they can be serialized to a Web Worker.
+ * returns a {@link PatternColor}, or a finished CSS color string to emit
+ * as-is (bypassing `colorOutput` serialization). Built-in color functions
+ * carry a `_descriptor` so they can be serialized to a Web Worker.
  */
 export interface ColorFunction {
-  (params: ColorFunctionParams): Color
+  (params: ColorFunctionParams): PatternColor | string
   _descriptor?: ColorFunctionDescriptor
 }
 
@@ -234,6 +284,13 @@ export interface RenderOpts {
   strokeWidth: number
   strokeColor: string | null
   shape: Shape
+  /**
+   * The color format the pattern's polygon colors were serialized in.
+   * Absent in data from older releases, which is treated as `'rgb'` —
+   * `toCanvas()` uses this to reject wide-gamut rendering where the canvas
+   * can't support it.
+   */
+  colorOutput?: ColorOutput
 }
 
 /**

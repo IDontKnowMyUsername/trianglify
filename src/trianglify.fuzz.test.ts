@@ -23,7 +23,7 @@ const mulberry = (seed: number) => () => {
 
 const SHAPES = ['triangle', 'pentagon', 'hexagon', 'heptagon', 'octagon', 'circle', 'pentagon-cairo', 'pentagon-convex', 'pentagon-nonconvex'] as const
 const POINT_GENS = ['grid', 'poisson', 'bestCandidate', 'spiral', 'sphere'] as const
-const COLOR_SPACES = ['rgb', 'hsv', 'hsl', 'hsi', 'lab', 'hcl'] as const
+const COLOR_SPACES = ['rgb', 'hsv', 'hsl', 'hsi', 'lab', 'hcl', 'oklab', 'oklch'] as const
 const COLOR_FNS = [null, 'interpolateLinear', 'sparkle', 'shadows', 'radial', 'angular'] as const
 
 const pick = <T,>(rand: () => number, arr: readonly T[]): T => arr[Math.floor(rand() * arr.length)]!

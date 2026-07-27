@@ -37,7 +37,7 @@ Trianglify ships several builds, selected automatically via the package `exports
 
 | How you load it | File served | Notes |
 |---|---|---|
-| `import trianglify from 'trianglify'` (bundlers) | `dist/trianglify.browser.mjs` | ESM for Vite/webpack/etc., `chroma-js` deduped by your bundler |
+| `import trianglify from 'trianglify'` (bundlers) | `dist/trianglify.browser.mjs` | ESM for Vite/webpack/etc. |
 | `import trianglify from 'trianglify'` (Node ESM) | `dist/trianglify.mjs` | ESM for Node |
 | `require('trianglify')` | `dist/trianglify.cjs` | CommonJS for Node |
 | `<script src=…>` | `dist/trianglify.bundle.js` | Minified UMD with all dependencies included (`.bundle.debug.js` is the unminified variant) |
@@ -53,7 +53,7 @@ The full set of importable types: `TrianglifyOptions`, `RenderOpts`, `Pattern` d
 
 Consuming the CommonJS type definitions requires TypeScript >= 5.3 with `moduleResolution` set to `node16`/`nodenext` or `bundler` (the `.d.cts` uses `resolution-mode` import attributes). ESM consumers have no additional version floor.
 
-Node >= 20 is required. `chroma-js` is a regular dependency; `canvas` is an optional peer dependency needed only for `toCanvas()`/PNG output in Node.
+Node >= 20 is required. Color support ([culori](https://culorijs.org/), tree-shaken) is bundled — trianglify has no runtime dependencies; `canvas` is an optional peer dependency needed only for `toCanvas()`/PNG output in Node.
 
 Upgrading from v4? See [**MIGRATING.md**](./MIGRATING.md) for the breaking-changes checklist.
 
@@ -238,9 +238,9 @@ The defaults shown above apply in browsers. In Node the defaults are `scaling: f
 
 The (frozen) default options object — see [Configuration](#-configuration).
 
-**`trianglify.utils.mix`** / **`trianglify.utils.colorbrewer`**
+**`trianglify.utils.mix`** / **`trianglify.utils.css`** / **`trianglify.utils.colorbrewer`**
 
-Re-exports of chroma-js's `mix()` and the built-in colorbrewer palette map, handy when writing custom palettes and color functions.
+Color helpers for custom palettes and color functions: `mix(a, b, ratio = 0.5, colorSpace = 'lab')` blends two colors (CSS strings or color objects) and returns a color object; `css(color, colorOutput = 'rgb')` serializes a color to a CSS string in any supported [`colorOutput`](#-configuration) format; `colorbrewer` is the built-in palette map.
 
 ## TrianglifyWorker
 
@@ -307,6 +307,8 @@ const defaultOptions = {
   fill: true,
   palette: trianglify.utils.colorbrewer,
   colorSpace: 'lab',
+  colorOutput: 'rgb',
+  colorQuantization: 'auto',
   colorFunction: trianglify.colorFunctions.interpolateLinear(0.5),
   strokeWidth: 0,
   strokeColor: null,
@@ -358,11 +360,25 @@ The array of color combinations to pick from when using `random` for the xColors
 
 **`colorSpace`**
 
-String, defaults to `'lab'`. Set the color space used for generating gradients. Supported values are rgb, hsv, hsl, hsi, lab and hcl. See this [blog post](https://vis4.net/blog/posts/avoid-equidistant-hsv-colors/) for some background on why this matters.
+String, defaults to `'lab'`. Set the color space used for generating gradients. Supported values are `rgb`, `hsv`, `hsl`, `hsi`, `lab`, `hcl`, `oklab`, and `oklch`. See this [blog post](https://vis4.net/blog/posts/avoid-equidistant-hsv-colors/) for some background on why this matters.
+
+**`colorOutput`**
+
+String, defaults to `'rgb'`. The format polygon colors are serialized in:
+
+- `'rgb'` — 8-bit `rgb(r g b)` strings, gamut-clamped to sRGB. Works everywhere.
+- `'oklch'` — decimal-precision `oklch(…)` strings; browsers map them to the display's gamut.
+- `'display-p3'` — `color(display-p3 …)` strings, gamut-clamped to P3, for wide-gamut displays.
+
+Wide-gamut output renders in SVG and in browser canvas (`toCanvas()` requests a `display-p3` canvas automatically for `'display-p3'` patterns). node-canvas cannot parse CSS Color 4 strings, so `toCanvas()` throws in Node for non-`'rgb'` output — render via `toSVGTree()` instead.
+
+**`colorQuantization`**
+
+`'auto'` (default), `false`, or an integer number of steps. Scale lookups snap to a t-grid of this many steps and are cached, which speeds up generation substantially. `'auto'` picks 256 steps for `'rgb'` output and 1024 for wide-gamut formats, keeping the quantization error at or below the output format's own precision (within one 8-bit channel step for `'rgb'`). Set `false` for exact scale evaluation.
 
 **`colorFunction`**
 
-Specify a custom function for coloring polygons, defaults to `trianglify.colorFunctions.interpolateLinear(0.5)`. Accepts a function to override the standard gradient coloring, which is passed a variety of data about the pattern and each polygon and must return a Chroma.js color object.
+Specify a custom function for coloring polygons, defaults to `trianglify.colorFunctions.interpolateLinear(0.5)`. Accepts a function to override the standard gradient coloring, which is passed a variety of data about the pattern and each polygon — including the x/y color scales (`(t) => color`) — and must return a color object (as produced by the scales or `trianglify.utils.mix`), or a finished CSS color string to emit as-is.
 
 The built-in color functions, all available on `trianglify.colorFunctions`:
 

@@ -28,6 +28,12 @@ Breaking changes vs v4:
   input — including opts.shape — before constructing a pattern
 - polygon color values are lightweight { css() } objects, no longer chroma-js
   Color instances
+- the chroma-js dependency is replaced by culori (bundled, tree-shaken —
+  trianglify now has zero runtime dependencies and the browser bundle is
+  ~18% smaller): custom colorFunctions receive plain (t) => color scale
+  functions instead of chroma scales and return culori-style color objects
+  (or a finished CSS string); trianglify.utils.mix returns a color object —
+  serialize it with the new trianglify.utils.css
 - patterns generated for a given seed differ from v4 (new RNG with separate
   seeded streams for geometry, palette selection, and color noise — changing
   color options can no longer change the geometry)
@@ -52,6 +58,18 @@ New features:
   untrusted data
 - new options: strokeColor, spiralDirection, spiralRatio; new built-in color
   functions radial() and angular()
+- wide-gamut color output: colorOutput option ('rgb' default, 'oklch',
+  'display-p3') controls how polygon colors are serialized; wide-gamut
+  patterns render in SVG and browser canvas (toCanvas requests a display-p3
+  canvas automatically), and toCanvas fails loudly in Node where node-canvas
+  cannot parse CSS Color 4 strings; colorSpace gains 'oklab' and 'oklch'
+  interpolation; colorOutput round-trips through toData()/fromData()
+- color pipeline performance: scale lookups are quantized and cached
+  (colorQuantization option — 'auto' keys the step count to the output
+  format's precision so the error stays below one output channel step;
+  false disables), and tiling vertex dedup and shape gap-fill
+  classification avoid per-probe string keys — pentagonal tilings generate
+  ~2.8x faster, N-gon/circle shapes ~2x, default triangle patterns ~2x
 - TypeScript throughout: bundled type definitions for ESM and CJS consumers,
   JSDoc on the public API surface, importable option/result types
 - rendering improvements: re-rendering into an existing destSVG replaces its

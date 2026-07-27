@@ -21,7 +21,8 @@ const opts: Partial<TrianglifyOptions> = {
 }
 
 // A custom color function gets typed params: centroid, normalized
-// coordinates, chroma scales, the point layout, and a seeded random source.
+// coordinates, the x/y color scales, the point layout, and a seeded
+// random source.
 const diagonal: ColorFunction = ({ xPercent, yPercent, xScale }) =>
   xScale((xPercent + yPercent) / 2)
 

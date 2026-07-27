@@ -48,7 +48,7 @@ If you were relying on v4's silent fallbacks, wrap the call in a
 `try`/`catch` while you clean up call sites — the error messages name the
 offending option.
 
-## 3. Polygon colors are `{ css() }` objects, not chroma-js instances
+## 3. chroma-js is gone: colors are `{ css() }` objects and plain color objects
 
 In v4, `pattern.polys[n].color` was a chroma-js `Color` with its full API
 (`.hex()`, `.darken()`, …). In v5 it is a minimal `{ css: () => string }`
@@ -58,13 +58,22 @@ wrapper (this is what makes patterns serializable and worker-transferable).
 // v4
 pattern.polys[0].color.hex()
 
-// v5 — get the CSS string, re-wrap in chroma if you need color math
-pattern.polys[0].color.css()                          // 'rgb(129,204,177)'
-chroma(pattern.polys[0].color.css()).hex()            // '#81ccb1'
+// v5 — get the CSS string, re-wrap in a color library if you need color math
+pattern.polys[0].color.css()                          // 'rgb(129 204 177)'
 ```
 
-Custom `colorFunction`s are unaffected: they still receive chroma scales and
-must return a chroma color.
+The color engine is now [culori](https://culorijs.org/) (bundled — no
+runtime dependency), which unlocks wide-gamut output via the new
+`colorOutput` option (`'rgb'` | `'oklch'` | `'display-p3'`) and the
+`oklab`/`oklch` interpolation spaces.
+
+Custom `colorFunction`s: the `xScale`/`yScale` params are now plain
+`(t) => color` functions instead of chroma scale objects, and the function
+must return a culori-style color object — which is what the scales and
+`trianglify.utils.mix` produce, so functions composed from those work
+unchanged — or a finished CSS color string. Chroma method chaining
+(`.darken()` etc.) on scale results no longer works; `trianglify.utils.mix`
+and `trianglify.utils.css` cover the common cases.
 
 ## 4. Seeded output differs from v4
 

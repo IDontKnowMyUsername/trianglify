@@ -53,10 +53,6 @@
     "lint:package": "publint && attw --pack . --ignore-rules cjs-resolves-to-esm && tsc -p typetests",
     "ci": "pnpm run typecheck && pnpm run lint && pnpm run build && pnpm run lint:package && pnpm run test:coverage"
   },
-  "dependencies": {
-    "@types/chroma-js": "^3.1.2",
-    "chroma-js": "^3.2.0"
-  },
   "peerDependencies": {
     "canvas": ">=2.0.0"
   },
@@ -147,6 +143,7 @@
     "@types/jest": "^30.0.0",
     "@types/node": "^25.5.0",
     "canvas": "^3.2.2",
+    "culori": "^4.0.2",
     "delaunator": "^5.1.0",
     "eslint": "^10.1.0",
     "jest": "^30.3.0",

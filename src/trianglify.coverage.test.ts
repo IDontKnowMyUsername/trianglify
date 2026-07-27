@@ -1188,7 +1188,7 @@ describe('sphere layout canvas coverage', () => {
 })
 
 describe('colorSpace option', () => {
-  const spaces = ['rgb', 'hsv', 'hsl', 'hsi', 'lab', 'hcl']
+  const spaces = ['rgb', 'hsv', 'hsl', 'hsi', 'lab', 'hcl', 'oklab', 'oklch']
 
   test('generates valid patterns in every supported color space', () => {
     spaces.forEach(colorSpace => {
@@ -1491,5 +1491,154 @@ describe('canvas error paths', () => {
     const pattern = trianglify({ seed: 'no-ctx', width: 50, height: 50 })
     const badCanvas = { getContext: () => null } as any
     expect(() => pattern.toCanvas(badCanvas)).toThrow('Could not acquire 2D rendering context')
+  })
+})
+
+describe('colorOutput option', () => {
+  const base = { seed: 'color-output', width: 100, height: 100 }
+
+  test("'rgb' (the default) emits 8-bit rgb() strings", () => {
+    const pattern = trianglify(base)
+    pattern.polys.forEach((poly: { color: { css: () => string } }) => {
+      expect(poly.color.css()).toMatch(/^rgb\(\d+ \d+ \d+\)$/)
+    })
+  })
+
+  test("'oklch' emits decimal-precision oklch() strings", () => {
+    const pattern = trianglify({ ...base, colorOutput: 'oklch' })
+    pattern.polys.forEach((poly: { color: { css: () => string } }) => {
+      expect(poly.color.css()).toMatch(/^oklch\(/)
+    })
+  })
+
+  test("'display-p3' emits color(display-p3 …) strings with channels clamped to [0, 1]", () => {
+    const pattern = trianglify({ ...base, colorOutput: 'display-p3' })
+    pattern.polys.forEach((poly: { color: { css: () => string } }) => {
+      const css = poly.color.css()
+      expect(css).toMatch(/^color\(display-p3 /)
+      const channels = css.slice('color(display-p3 '.length).replace(/[)/].*$/, '').trim().split(/\s+/).map(Number)
+      channels.forEach((c: number) => {
+        expect(c).toBeGreaterThanOrEqual(0)
+        expect(c).toBeLessThanOrEqual(1)
+      })
+    })
+  })
+
+  test('rejects invalid colorOutput values', () => {
+    expect(() => trianglify({ ...base, colorOutput: 'p3' })).toThrow('invalid colorOutput')
+    expect(() => trianglify({ ...base, colorOutput: 42 })).toThrow('invalid colorOutput')
+  })
+
+  test('colorOutput round-trips through toData/fromData', () => {
+    const pattern = trianglify({ ...base, colorOutput: 'oklch' })
+    const data = pattern.toData()
+    expect(data.opts.colorOutput).toBe('oklch')
+    const restored = Pattern.fromData(JSON.parse(JSON.stringify(data)))
+    expect(restored.toSVGTree().toString()).toEqual(pattern.toSVGTree().toString())
+  })
+
+  test('fromData rejects malformed colorOutput but accepts absent (legacy data)', () => {
+    const data = trianglify(base).toData()
+    expect(() => Pattern.fromData({ ...data, opts: { ...data.opts, colorOutput: 'cmyk' } })).toThrow('opts.colorOutput')
+    const legacy = { ...data, opts: { ...data.opts } }
+    delete legacy.opts.colorOutput
+    expect(Pattern.fromData(legacy)).toBeInstanceOf(Pattern)
+  })
+
+  test('toCanvas throws for wide-gamut output in Node instead of rendering black', () => {
+    for (const colorOutput of ['oklch', 'display-p3']) {
+      const pattern = trianglify({ ...base, colorOutput })
+      expect(() => pattern.toCanvas()).toThrow('node-canvas does not support')
+    }
+    // restored patterns carry colorOutput across the serialization boundary
+    const restored = Pattern.fromData(trianglify({ ...base, colorOutput: 'oklch' }).toData())
+    expect(() => restored.toCanvas()).toThrow('node-canvas does not support')
+  })
+})
+
+describe('colorQuantization option', () => {
+  const base = { seed: 'quantization', width: 100, height: 100 }
+
+  test('rejects malformed values', () => {
+    expect(() => trianglify({ ...base, colorQuantization: 0 })).toThrow('invalid colorQuantization')
+    expect(() => trianglify({ ...base, colorQuantization: 1 })).toThrow('invalid colorQuantization')
+    expect(() => trianglify({ ...base, colorQuantization: 2.5 })).toThrow('invalid colorQuantization')
+    expect(() => trianglify({ ...base, colorQuantization: true })).toThrow('invalid colorQuantization')
+    expect(() => trianglify({ ...base, colorQuantization: 2 ** 21 })).toThrow('invalid colorQuantization')
+  })
+
+  test('false disables quantization, explicit step counts work', () => {
+    const exact = trianglify({ ...base, colorQuantization: false })
+    const coarse = trianglify({ ...base, colorQuantization: 2 })
+    expect(exact.polys.length).toBeGreaterThan(0)
+    expect(coarse.polys.length).toBeGreaterThan(0)
+    // a 2-step scale collapses colors far more than the default — the
+    // patterns must differ, proving the option reaches the scales
+    expect(coarse.toSVGTree().toString()).not.toEqual(exact.toSVGTree().toString())
+  })
+
+  test('default quantization stays within one 8-bit channel step of exact', () => {
+    const parseRgb = (css: string): number[] => css.match(/\d+/g)!.map(Number)
+    const quantized = trianglify(base)
+    const exact = trianglify({ ...base, colorQuantization: false })
+    quantized.polys.forEach((poly: { color: { css: () => string } }, i: number) => {
+      const q = parseRgb(poly.color.css())
+      const e = parseRgb(exact.polys[i].color.css())
+      for (let c = 0; c < 3; c++) {
+        expect(Math.abs(q[c]! - e[c]!)).toBeLessThanOrEqual(1)
+      }
+    })
+  })
+})
+
+describe('color utils and custom color functions', () => {
+  test('utils.mix blends colors and utils.css serializes them', () => {
+    const mixed = trianglify.utils.mix('#ff0000', '#0000ff', 0.5)
+    expect(typeof mixed).toBe('object')
+    expect(typeof mixed.mode).toBe('string')
+    expect(trianglify.utils.css(mixed)).toMatch(/^rgb\(\d+ \d+ \d+\)$/)
+    expect(trianglify.utils.css(mixed, 'oklch')).toMatch(/^oklch\(/)
+    expect(trianglify.utils.css('#ff0000', 'display-p3')).toMatch(/^color\(display-p3 /)
+  })
+
+  test('utils.mix defaults and custom spaces', () => {
+    const a = trianglify.utils.css(trianglify.utils.mix('red', 'blue'))
+    const b = trianglify.utils.css(trianglify.utils.mix('red', 'blue', 0.5, 'rgb'))
+    expect(a).toMatch(/^rgb\(/)
+    expect(b).toMatch(/^rgb\(/)
+    expect(a).not.toEqual(b) // lab vs rgb interpolation differ
+  })
+
+  test('unparseable colors throw a TypeError', () => {
+    expect(() => trianglify.utils.mix('not-a-color', 'red')).toThrow('invalid color')
+    expect(() => trianglify.utils.css('not-a-color')).toThrow('invalid color')
+  })
+
+  test('alpha survives rgb serialization', () => {
+    expect(trianglify.utils.css('rgba(255 0 0 / 0.5)')).toMatch(/^rgb\(255 0 0 \/ 0\.5\)$/)
+  })
+
+  test('a color function returning a CSS string passes through untouched', () => {
+    const pattern = trianglify({
+      seed: 'string-color',
+      width: 100,
+      height: 100,
+      colorFunction: () => 'papayawhip'
+    })
+    pattern.polys.forEach((poly: { color: { css: () => string } }) => {
+      expect(poly.color.css()).toBe('papayawhip')
+    })
+  })
+
+  test('single-color scales produce a constant gradient', () => {
+    const pattern = trianglify({
+      seed: 'single-color',
+      width: 100,
+      height: 100,
+      xColors: ['#3498db'],
+      yColors: 'match'
+    })
+    const colors = new Set(pattern.polys.map((p: { color: { css: () => string } }) => p.color.css()))
+    expect(colors.size).toBe(1)
   })
 })

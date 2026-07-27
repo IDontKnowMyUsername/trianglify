@@ -1,6 +1,7 @@
 import getScalingRatio from './utils/getScalingRatio'
 import { isBrowser } from './utils/env'
 import { validShapes } from './utils/shapes'
+import { validColorOutputs } from './utils/colorBackend'
 import type { Point, CSSColor, Polygon, TrianglifyOptions, RenderOpts, PatternData, SVGTreeNode, SVGAttrs, SVGOptions, CanvasOptions } from './types'
 
 declare const require: (id: string) => { createCanvas: (w: number, h: number) => HTMLCanvasElement }
@@ -118,6 +119,10 @@ function validatePatternData (data: unknown): asserts data is PatternData {
   if (!isFiniteNumber(o.strokeWidth) || o.strokeWidth < 0) fail(`opts.strokeWidth must be a non-negative finite number, got ${JSON.stringify(o.strokeWidth)}`)
   if (o.strokeColor !== null && typeof o.strokeColor !== 'string') fail(`opts.strokeColor must be a string or null, got ${JSON.stringify(o.strokeColor)}`)
   if (typeof o.shape !== 'string' || !Object.hasOwn(validShapes, o.shape)) fail(`opts.shape must be a valid shape name, got ${JSON.stringify(o.shape)}`)
+  // absent in data serialized by older releases — treated as 'rgb'
+  if (o.colorOutput !== undefined && (typeof o.colorOutput !== 'string' || !Object.hasOwn(validColorOutputs, o.colorOutput))) {
+    fail(`opts.colorOutput must be 'rgb', 'oklch', or 'display-p3', got ${JSON.stringify(o.colorOutput)}`)
+  }
 }
 
 // circles serialize with a radius and no vertex geometry — the single
@@ -173,7 +178,7 @@ export default class Pattern {
    * structure with the pattern — mutating one never affects the other.
    */
   toData (): PatternData {
-    const { width, height, fill, strokeWidth, strokeColor, shape } = this.opts
+    const { width, height, fill, strokeWidth, strokeColor, shape, colorOutput } = this.opts
     return {
       points: this.points.map((p): Point => [p[0], p[1]]),
       polys: this.polys.map(poly => ({
@@ -182,7 +187,7 @@ export default class Pattern {
         color: poly.color.css(),
         ...(poly.radius != null ? { radius: poly.radius } : {})
       })),
-      opts: { width, height, fill, strokeWidth, strokeColor, shape }
+      opts: { width, height, fill, strokeWidth, strokeColor, shape, ...(colorOutput != null ? { colorOutput } : {}) }
     }
   }
 
@@ -316,8 +321,25 @@ export default class Pattern {
     const { points, polys, opts } = this
     const { width, height, fill, strokeWidth, strokeColor } = opts
 
+    // wide-gamut color strings (oklch(), color(display-p3 …)) are valid
+    // canvas fill styles in browsers but not in node-canvas, which would
+    // silently render every polygon black — fail loudly instead
+    const colorOutput = opts.colorOutput ?? 'rgb'
+    if (colorOutput !== 'rgb' && !isBrowser) {
+      throw new Error(
+        `toCanvas() cannot render colorOutput: '${colorOutput}' in Node — ` +
+        "node-canvas does not support CSS Color 4 fill styles. Render via " +
+        "toSVG()/toSVGTree(), or generate the pattern with colorOutput: 'rgb'."
+      )
+    }
+
     const canvas = destCanvas || _createCanvas(width, height)
-    const ctx = canvas.getContext('2d')
+    // display-p3 output gets a display-p3 canvas so out-of-sRGB colors
+    // survive rasterization (browsers without P3 canvas support fall back
+    // to sRGB and clamp)
+    const ctx = colorOutput === 'display-p3'
+      ? canvas.getContext('2d', { colorSpace: 'display-p3' })
+      : canvas.getContext('2d')
     if (!ctx) throw new Error('Could not acquire 2D rendering context from canvas')
 
     if (canvasOpts.scaling) {

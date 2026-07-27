@@ -1,9 +1,31 @@
 # Color pipeline plan: wide-gamut output and the chroma migration
 
-Status: draft plan, not yet scheduled. Written 2026-07-27 after a
-performance analysis of the color pipeline; the perf findings and the
-wide-gamut requirement point at the same subsystem, so they are planned
-together here.
+Status: **implemented** (2026-07-27, same day as the plan — landed in the
+unreleased v5.0.0 rather than a v6, since the v5 API was never published).
+Decisions taken during implementation, where they differ from or resolve
+open points below:
+
+- culori is **bundled** (from the tree-shakeable `culori/fn` entry), not an
+  external dependency: culori's `./fn` subpath ships only ESM, which
+  `require()` cannot load on older node 20.x. Net effect: zero runtime
+  dependencies, and the minified browser bundle *shrank* from 76.5 KB to
+  62.3 KB.
+- culori ships no TypeScript types; a minimal ambient declaration
+  (`src/utils/culori-fn.d.ts`) covers exactly the imported surface, and the
+  public API exposes trianglify's own `PatternColor` type — the published
+  `.d.ts` has no culori type dependency.
+- Gamut handling is **channel clamping** (sRGB for `'rgb'`, P3 for
+  `'display-p3'`), matching the clipping behavior of previous releases;
+  `'oklch'` output is left unclamped for the display to map. The
+  chroma-preserving `toGamut` mapping remains a possible refinement.
+- `toCanvas()` requests a `display-p3` context **automatically** for
+  `'display-p3'` patterns (no separate opt-in), and throws in Node for any
+  non-`'rgb'` output.
+- Quantization defaults on (`colorQuantization: 'auto'`: 256 steps for
+  `'rgb'`, 1024 for wide-gamut), per-axis as planned, with `false` as the
+  exact-evaluation escape hatch.
+
+The original plan follows.
 
 ## Problem statement
 

@@ -6,9 +6,6 @@
  */
 
 import Delaunator from 'delaunator'
-// TODO - evaluate smaller alternatives
-// (chroma bloats bundle by 40k, minified)
-import chroma from 'chroma-js'
 
 import colorbrewer from './utils/colorbrewer'
 import Pattern from './pattern'
@@ -23,9 +20,10 @@ import * as colorFunctions from './utils/colorFunctions'
 import { generateRegularPolygon, getSidesForShape, validShapes } from './utils/shapes'
 import { generateTiling, countTilingVertices } from './utils/tilings'
 import { createWorkerHandler } from './workerHost'
+import { makeScale, mix, serializeColor, validColorOutputs } from './utils/colorBackend'
 import type { RegularPolygonShape } from './utils/shapes'
-import type { TrianglifyOptions, Polygon, Point, CSSColor, Centroid, Shape, TilingShape, WorkerResponse } from './types'
-export type { TrianglifyOptions, RenderOpts, ColorFunctionParams, ColorFunction, ColorFunctionDescriptor, CSSColor, Polygon, PatternData, SVGTreeNode, SVGOptions, CanvasOptions, Shape, TilingShape, Point, Centroid, WorkerRequest, WorkerResponse } from './types'
+import type { TrianglifyOptions, Polygon, Point, CSSColor, Centroid, Shape, TilingShape, WorkerResponse, PatternColor } from './types'
+export type { TrianglifyOptions, RenderOpts, ColorFunctionParams, ColorFunction, ColorFunctionDescriptor, CSSColor, PatternColor, ColorSpace, ColorOutput, Polygon, PatternData, SVGTreeNode, SVGOptions, CanvasOptions, Shape, TilingShape, Point, Centroid, WorkerRequest, WorkerResponse } from './types'
 
 /** The frozen defaults for every option — see {@link TrianglifyOptions} for what each one does. */
 const defaultOptions: TrianglifyOptions = Object.freeze({
@@ -38,6 +36,8 @@ const defaultOptions: TrianglifyOptions = Object.freeze({
   yColors: 'match',
   palette: colorbrewer,
   colorSpace: 'lab',
+  colorOutput: 'rgb',
+  colorQuantization: 'auto',
   colorFunction: colorFunctions.interpolateLinear(0.5),
   fill: true,
   strokeWidth: 0,
@@ -60,7 +60,11 @@ const isTilingShape = (shape: Shape): shape is TilingShape =>
 // the type forces compile-time completeness, so adding a member to a union
 // type without updating its validator is a type error here (validShapes
 // lives in utils/shapes.ts, shared with Pattern.fromData)
-const validColorSpaces: Record<TrianglifyOptions['colorSpace'], true> = { rgb: true, hsv: true, hsl: true, hsi: true, lab: true, hcl: true }
+const validColorSpaces: Record<TrianglifyOptions['colorSpace'], true> = { rgb: true, hsv: true, hsl: true, hsi: true, lab: true, hcl: true, oklab: true, oklch: true }
+
+// quantized scale caches are dense arrays of steps + 1 entries; the cap
+// keeps a typo'd step count from allocating an absurd cache
+const MAX_QUANTIZATION_STEPS = 2 ** 20
 
 const validPointGenerations: Record<TrianglifyOptions['pointGeneration'], true> = { grid: true, poisson: true, bestCandidate: true, spiral: true, sphere: true }
 
@@ -154,6 +158,13 @@ const validateOptions = (_opts: Partial<TrianglifyOptions>): TrianglifyOptions =
   validateColors(opts.yColors, 'yColors')
   if (!Object.hasOwn(validColorSpaces, opts.colorSpace)) {
     throw TypeError(`invalid colorSpace: ${opts.colorSpace}`)
+  }
+  if (!Object.hasOwn(validColorOutputs, opts.colorOutput)) {
+    throw TypeError(`invalid colorOutput: ${opts.colorOutput} (expected 'rgb', 'oklch', or 'display-p3')`)
+  }
+  if (opts.colorQuantization !== 'auto' && opts.colorQuantization !== false &&
+      (typeof opts.colorQuantization !== 'number' || !Number.isInteger(opts.colorQuantization) || opts.colorQuantization < 2 || opts.colorQuantization > MAX_QUANTIZATION_STEPS)) {
+    throw TypeError(`invalid colorQuantization: ${String(opts.colorQuantization)} (expected 'auto', false, or an integer between 2 and ${MAX_QUANTIZATION_STEPS})`)
   }
   if (typeof opts.colorFunction !== 'function') {
     throw TypeError(`invalid colorFunction: expected a function, got ${typeof opts.colorFunction}`)
@@ -401,8 +412,27 @@ function trianglify (_opts: Partial<TrianglifyOptions> = {}): Pattern {
     ? xColors
     : processColorOpts(opts.yColors)
 
-  const xScale = chroma.scale(xColors).mode(opts.colorSpace)
-  const yScale = chroma.scale(yColors).mode(opts.colorSpace)
+  // Quantized scales snap t to a grid of `steps` and cache the result —
+  // the cache stays effective at any step count because it is per axis,
+  // and the color function is still invoked per polygon, so seeded RNG
+  // draw sequences are unaffected. 'auto' keys the step count to the
+  // output format's precision (see docs/color-pipeline-plan.md).
+  const quantSteps = opts.colorQuantization === 'auto'
+    ? (opts.colorOutput === 'rgb' ? 256 : 1024)
+    : opts.colorQuantization
+  const memoizeScale = (scale: (t: number) => PatternColor, steps: number): ((t: number) => PatternColor) => {
+    const cache = new Array<PatternColor | undefined>(steps + 1)
+    return (t: number) => {
+      const clamped = t < 0 ? 0 : t > 1 ? 1 : t
+      const idx = Math.round(clamped * steps)
+      return (cache[idx] ??= scale(idx / steps))
+    }
+  }
+  const applyQuantization = (scale: (t: number) => PatternColor): ((t: number) => PatternColor) =>
+    quantSteps === false ? scale : memoizeScale(scale, quantSteps)
+
+  const xScale = applyQuantization(makeScale(xColors, opts.colorSpace))
+  const yScale = applyQuantization(makeScale(yColors, opts.colorSpace))
 
   // Our next step is to generate a pseudo-random grid of {x, y} points,
   // (or to simply utilize the points that were passed to us)
@@ -435,7 +465,8 @@ function trianglify (_opts: Partial<TrianglifyOptions> = {}): Pattern {
       random: cRand
     })
 
-    const cssValue = rawColor.css()
+    // a string return is a finished CSS color and passes through untouched
+    const cssValue = typeof rawColor === 'string' ? rawColor : serializeColor(rawColor, opts.colorOutput)
     return { css: () => cssValue }
   }
 
@@ -544,8 +575,14 @@ const getHexGridPoints = (
 
 export default Object.assign(trianglify, {
   utils: {
-    // eslint-disable-next-line @typescript-eslint/unbound-method -- chroma.mix is a plain function that never reads `this`
-    mix: chroma.mix,
+    /**
+     * Mix two colors (CSS strings or {@link PatternColor} objects) in the
+     * given interpolation space. Returns a {@link PatternColor} — serialize
+     * it with {@link css}.
+     */
+    mix,
+    /** Serialize a color to a CSS string in the given {@link ColorOutput} format (default `'rgb'`). */
+    css: serializeColor,
     colorbrewer
   },
   colorFunctions,

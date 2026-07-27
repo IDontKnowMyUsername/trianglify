@@ -91,17 +91,19 @@ describe('bundle size ceilings', () => {
 
   test('bundles stay under size ceilings', () => {
     // ~15% headroom over current sizes — guards against accidental
-    // dependency bloat; raise deliberately when an increase is intentional
-    expect(sizeOf('trianglify.bundle.js')).toBeLessThan(88_000)
-    expect(sizeOf('trianglify.worker.js')).toBeLessThan(88_000)
-    expect(sizeOf('trianglify.cjs')).toBeLessThan(120_000)
+    // dependency bloat; raise deliberately when an increase is intentional.
+    // The cjs ceiling covers culori inlined unminified (its ./fn entry is
+    // ESM-only, so it cannot stay an external require() dependency)
+    expect(sizeOf('trianglify.bundle.js')).toBeLessThan(72_000)
+    expect(sizeOf('trianglify.worker.js')).toBeLessThan(72_000)
+    expect(sizeOf('trianglify.cjs')).toBeLessThan(200_000)
   })
 
   test('minified bundles retain license attribution', () => {
     for (const file of ['trianglify.bundle.js', 'trianglify.worker.js']) {
       const source = fs.readFileSync(path.join(__dirname, '../dist', file), 'utf8')
-      expect(source).toContain('chroma-js')
-      expect(source).toContain('BSD-3-Clause')
+      expect(source).toContain('culori')
+      expect(source).toContain('MIT')
     }
   })
 })
