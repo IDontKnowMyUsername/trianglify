@@ -3,6 +3,7 @@ Development commit log, auto-appended by .claude/hooks/post-commit-changelog.sh
 changelog.txt — this file records internal churn and is not published.
 
 v5
+- implement the color pipeline plan: culori backend, wide-gamut output, scale quantization (2026-07-27)
 - speed up tiling vertex dedup and shape gap-fill classification, add color pipeline plan (2026-07-27)
 - fix per-shape allocation guard and harden rendering, serialization, worker, CI, and docs (2026-07-27)
 - sync pnpm-lock.yaml with @types/chroma-js runtime dependency (2026-07-26)
