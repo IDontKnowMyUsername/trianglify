@@ -60,7 +60,10 @@ export default class TrianglifyWorker {
     this._pending = new Map()
     this._terminated = false
 
-    this._worker.onmessage = (e: MessageEvent<{ id: number; data?: PatternData; error?: string }>) => {
+    // addEventListener rather than onmessage/onerror assignment: the
+    // constructor accepts caller-supplied Worker instances, and attaching
+    // must not silently discard handlers the caller installed
+    this._worker.addEventListener('message', (e: MessageEvent<{ id: number; data?: PatternData; error?: string }>) => {
       const { id, data, error } = e.data
       const handler = this._pending.get(id)
       if (!handler) return
@@ -68,14 +71,14 @@ export default class TrianglifyWorker {
       if (error !== undefined) handler.reject(new Error(error))
       else if (data) handler.resolve(Pattern.fromData(data))
       else handler.reject(new Error('Worker returned neither data nor error'))
-    }
+    })
 
-    this._worker.onerror = (e: ErrorEvent) => {
+    this._worker.addEventListener('error', (e: ErrorEvent) => {
       for (const [, handler] of this._pending) {
         handler.reject(new Error(e.message))
       }
       this._pending.clear()
-    }
+    })
   }
 
   /**

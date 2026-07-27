@@ -3,7 +3,7 @@ import tseslint from 'typescript-eslint'
 
 export default tseslint.config(
   eslint.configs.recommended,
-  ...tseslint.configs.recommendedTypeChecked,
+  ...tseslint.configs.strictTypeChecked,
   {
     languageOptions: {
       parserOptions: {
@@ -14,6 +14,15 @@ export default tseslint.config(
       }
     },
     rules: {
+      // noUncheckedIndexedAccess makes every indexed read T | undefined; a
+      // `!` right after a structural guarantee (bounds-checked loops,
+      // just-pushed entries) is this codebase's sanctioned narrowing idiom,
+      // so the strict preset's blanket ban would force artificial
+      // restructuring without catching anything real
+      '@typescript-eslint/no-non-null-assertion': 'off',
+      // numbers interpolate deterministically — the strict default only
+      // allows strings, which would litter geometry messages with String()
+      '@typescript-eslint/restrict-template-expressions': ['error', { allowNumber: true }],
       // typescript-eslint's eslint-recommended overlay disables these two —
       // re-enable them, they still catch real problems in TS code
       'no-var': 'error',
@@ -49,7 +58,10 @@ export default tseslint.config(
       '@typescript-eslint/no-unsafe-member-access': 'off',
       '@typescript-eslint/no-unsafe-call': 'off',
       '@typescript-eslint/no-unsafe-argument': 'off',
-      '@typescript-eslint/no-unsafe-return': 'off'
+      '@typescript-eslint/no-unsafe-return': 'off',
+      // assertions interpolate any-typed bundle values constantly
+      '@typescript-eslint/restrict-template-expressions': 'off',
+      '@typescript-eslint/restrict-plus-operands': 'off'
     }
   },
   {

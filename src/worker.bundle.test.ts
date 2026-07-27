@@ -42,7 +42,7 @@ const bootWorker = () => {
   // eslint-disable-next-line @typescript-eslint/no-implied-eval -- deliberately executing the built worker bundle in-process
   new Function('self', workerSource)(scope)
   const send = (id: number, opts: Record<string, unknown>) =>
-    scope.onmessage!({ data: { id, opts } })
+    { scope.onmessage!({ data: { id, opts } }); }
   return { scope, posted, send }
 }
 
@@ -137,7 +137,7 @@ describe('worker bundle execution', () => {
 
   test('replies with an error instead of throwing on invalid options', () => {
     const { posted, send } = bootWorker()
-    expect(() => send(4, { cellSize: 0.5 })).not.toThrow()
+    expect(() => { send(4, { cellSize: 0.5 }); }).not.toThrow()
     expect(posted[0]!.id).toBe(4)
     expect(posted[0]!.error).toMatch(/invalid cellSize/)
   })
@@ -150,5 +150,73 @@ describe('worker bundle execution', () => {
     expect(posted.map(m => m.id)).toEqual([1, 2])
     expect(posted[0]!.data.opts.width).toBe(100)
     expect(posted[1]!.data.opts.width).toBe(120)
+  })
+})
+
+describe('createWorkerHandler (main-entry export)', () => {
+  // The same protocol logic the worker bundle wires up, exercised through
+  // the CJS bundle so the coverage remap measures it — the IIFE evaluated
+  // via new Function above is invisible to coverage.
+  const bootHandler = () => {
+    const posted: WorkerReply[] = []
+    const handle = trianglify.createWorkerHandler((msg: WorkerReply) => { posted.push(msg) })
+    const send = (id: number, opts: Record<string, unknown>) => handle({ id, opts })
+    return { posted, handle, send }
+  }
+
+  test('produces replies identical to the worker bundle', () => {
+    const opts = { seed: 'host-parity', width: 200, height: 200, colorFunction: { name: 'sparkle', args: [0.2] } }
+    const viaBundle = bootWorker()
+    viaBundle.send(9, opts)
+    const viaHandler = bootHandler()
+    viaHandler.send(9, opts)
+
+    expect(viaHandler.posted).toEqual(viaBundle.posted)
+  })
+
+  test('resolves bare string color function descriptors', () => {
+    const { posted, send } = bootHandler()
+    send(0, { seed: 's', width: 100, height: 100, colorFunction: 'shadows' })
+    expect(posted[0]!.error).toBeUndefined()
+
+    const expected = trianglify({
+      seed: 's',
+      width: 100,
+      height: 100,
+      colorFunction: trianglify.colorFunctions.shadows()
+    })
+    expect(Pattern.fromData(posted[0]!.data).toSVGTree().toString()).toBe(
+      expected.toSVGTree().toString()
+    )
+  })
+
+  test('rejects unknown and inherited color function names', () => {
+    const { posted, send } = bootHandler()
+    send(1, { colorFunction: { name: 'nope' } })
+    send(2, { colorFunction: { name: 'constructor' } })
+    expect(posted).toEqual([
+      { id: 1, error: 'Unknown color function: nope' },
+      { id: 2, error: 'Unknown color function: constructor' }
+    ])
+  })
+
+  test('answers malformed messages with an id-less error reply', () => {
+    const { posted, handle } = bootHandler()
+    handle(null)
+    handle({ opts: { width: 100 } }) // missing id
+    handle('nonsense')
+
+    expect(posted).toHaveLength(3)
+    for (const reply of posted) {
+      expect(reply.error).toContain('Malformed worker message')
+      expect(reply.id).toBeUndefined()
+    }
+  })
+
+  test('replies with an error instead of throwing on invalid options', () => {
+    const { posted, send } = bootHandler()
+    expect(() => send(4, { cellSize: 0.5 })).not.toThrow()
+    expect(posted[0]!.id).toBe(4)
+    expect(posted[0]!.error).toMatch(/invalid cellSize/)
   })
 })

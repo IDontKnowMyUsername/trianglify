@@ -15,6 +15,9 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "isolatedModules": true,
+    // enforces `import type` for type-only imports, so emitted imports are
+    // exactly what was written (pairs with isolatedModules)
+    "verbatimModuleSyntax": true,
     "noEmit": true,
     "rootDir": "./src",
     "sourceMap": true,

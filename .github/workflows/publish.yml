@@ -1,29 +1,43 @@
 # Publishes to npm with provenance when a GitHub release is published.
 # Requires an npm automation token stored as the NPM_TOKEN repository secret.
 # The prepublishOnly guard (pnpm run ci) runs automatically before publish.
+#
+# Manual dispatch requires naming an existing release tag: the checkout is
+# pinned to that tag and the tag-vs-package.json version check runs on every
+# trigger, so a dispatch can only republish a tagged version — never an
+# arbitrary branch head.
 name: publish
 
 on:
   release:
     types: [published]
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing release tag to publish (e.g. v5.0.0); must match the package.json version at that tag'
+        required: true
+        type: string
 
 permissions:
   contents: read
   id-token: write # required for npm provenance
+
+env:
+  # release event: the published tag; manual dispatch: the required tag input
+  RELEASE_TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || inputs.tag }}
 
 jobs:
   publish:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      with:
+        ref: ${{ env.RELEASE_TAG }}
     - name: Verify release tag matches package.json version
-      if: github.event_name == 'release'
       run: |
-        TAG="${{ github.event.release.tag_name }}"
         VERSION=$(node -p "require('./package.json').version")
-        if [ "${TAG#v}" != "$VERSION" ]; then
-          echo "Release tag $TAG does not match package.json version $VERSION" >&2
+        if [ "${RELEASE_TAG#v}" != "$VERSION" ]; then
+          echo "Release tag $RELEASE_TAG does not match package.json version $VERSION" >&2
           exit 1
         fi
     - name: Install pnpm
@@ -34,6 +48,8 @@ jobs:
         cache: 'pnpm'
         registry-url: 'https://registry.npmjs.org'
     - run: pnpm install --frozen-lockfile
+    # --no-git-checks: the checkout is a detached tag, which is exactly what
+    # the guard above verified — pnpm's branch check would only get in the way
     - run: pnpm publish --provenance --access public --no-git-checks
       env:
         NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

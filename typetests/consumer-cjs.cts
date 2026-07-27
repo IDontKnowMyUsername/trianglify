@@ -15,6 +15,11 @@ const restored = trianglify.Pattern.fromData(data)
 // must reflect that self-reference
 const viaDefault: typeof trianglify = trianglify.default
 
+// the worker protocol surface must carry through the merged namespace
+const handleMessage = trianglify.createWorkerHandler((response: trianglify.WorkerResponse) => { void response })
+const request: trianglify.WorkerRequest = { id: 1, opts: { width: 10 } }
+handleMessage(request)
+
 void svgString
 void opts
 void data

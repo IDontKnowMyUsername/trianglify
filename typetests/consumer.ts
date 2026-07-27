@@ -10,7 +10,9 @@ import trianglify, {
   type Polygon,
   type Shape,
   type Point,
-  type Centroid
+  type Centroid,
+  type WorkerRequest,
+  type WorkerResponse
 } from 'trianglify'
 import 'trianglify/worker'
 
@@ -38,8 +40,15 @@ const worker = new trianglify.TrianglifyWorker('trianglify.worker.js')
 const generated: Promise<InstanceType<typeof trianglify.Pattern>> =
   worker.generate({ width: 10, height: 10 })
 
+// createWorkerHandler builds a protocol-compatible handler for hand-rolled
+// worker scripts; the request/response wire types must be importable
+const responses: WorkerResponse[] = []
+const handleMessage: (data: WorkerRequest | null | undefined) => void =
+  trianglify.createWorkerHandler(response => { responses.push(response) })
+
 void css
 void svgString
 void shape
 void descriptor
 void generated
+void handleMessage

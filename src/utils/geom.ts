@@ -16,10 +16,21 @@ export const getCentroid = (d: Point[]): Centroid => {
 // Cell-grid density shared by every point generator: a padded grid with two
 // extra cells on each side of the artboard. Every pointGeneration mode emits
 // this same number of points so modes are interchangeable at a given
-// cellSize. (Hexagon grids are the one exception: they use their own
-// honeycomb row spacing in trianglify.ts, so their row count differs.)
+// cellSize. (Hexagon grids are the one exception — see getHexGridDensity.)
 export const getGridDensity = (width: number, height: number, cellSize: number): { colCount: number; rowCount: number; pointCount: number } => {
   const colCount = Math.floor(width / cellSize) + 4
   const rowCount = Math.floor(height / cellSize) + 4
   return { colCount, rowCount, pointCount: colCount * rowCount }
+}
+
+// Honeycomb density for hexagon grids: same padded-column rule, but rows are
+// (√3/2)·cellSize apart so hexagons form an exact gap-free honeycomb. Kept
+// beside getGridDensity so the point generator (getHexGridPoints in
+// trianglify.ts) and the allocation guard (estimatePointCount) can never
+// disagree about the row count.
+export const getHexGridDensity = (width: number, height: number, cellSize: number): { colCount: number; rowCount: number; rowSpacing: number; pointCount: number } => {
+  const rowSpacing = cellSize * Math.sqrt(3) / 2
+  const colCount = Math.floor(width / cellSize) + 4
+  const rowCount = Math.floor(height / rowSpacing) + 4
+  return { colCount, rowCount, rowSpacing, pointCount: colCount * rowCount }
 }

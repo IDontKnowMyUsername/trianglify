@@ -182,6 +182,29 @@ export interface ColorFunction {
   _descriptor?: ColorFunctionDescriptor
 }
 
+/**
+ * The message a `TrianglifyWorker` client posts to the worker. Functions
+ * cannot cross the structured-clone boundary, so a color function only ever
+ * arrives as a {@link ColorFunctionDescriptor} or a bare built-in name.
+ */
+export interface WorkerRequest {
+  id?: number
+  opts?: Omit<Partial<TrianglifyOptions>, 'colorFunction'> & {
+    colorFunction?: ColorFunctionDescriptor | string
+  }
+}
+
+/**
+ * The reply the worker posts back: the request's `id` plus either the
+ * serialized pattern data or an error message (never both). A malformed
+ * request is answered with `id: undefined`.
+ */
+export interface WorkerResponse {
+  id: number | undefined
+  data?: PatternData
+  error?: string
+}
+
 /** One colored polygon of a generated pattern. */
 export interface Polygon {
   /**
@@ -224,13 +247,16 @@ export interface PatternData {
   opts: RenderOpts
 }
 
+/** Attribute map of an SVG node; `undefined` values are omitted when serializing. */
+export type SVGAttrs = Record<string, string | number | undefined>
+
 /**
  * Lightweight SVG node tree returned by `toSVG()`/`toSVGTree()` outside the
  * browser — call `toString()` to serialize it to a valid SVG string.
  */
 export interface SVGTreeNode {
   tagName: string
-  attrs: Record<string, string | number | undefined>
+  attrs: SVGAttrs
   children: SVGTreeNode[] | null
   toString(): string
 }

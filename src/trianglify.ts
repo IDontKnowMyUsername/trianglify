@@ -18,12 +18,14 @@ import poissonDisc from './utils/poissonDisc'
 import bestCandidate from './utils/bestCandidate'
 import spiralPoints from './utils/spiral'
 import spherePoints from './utils/sphere'
-import { getCentroid, getGridDensity } from './utils/geom'
+import { getCentroid, getGridDensity, getHexGridDensity } from './utils/geom'
 import * as colorFunctions from './utils/colorFunctions'
-import { generateRegularPolygon, getSidesForShape } from './utils/shapes'
-import { generateTiling } from './utils/tilings'
-import type { TrianglifyOptions, Polygon, Point, CSSColor, Centroid, Shape, TilingShape } from './types'
-export type { TrianglifyOptions, RenderOpts, ColorFunctionParams, ColorFunction, ColorFunctionDescriptor, CSSColor, Polygon, PatternData, SVGTreeNode, SVGOptions, CanvasOptions, Shape, TilingShape, Point, Centroid } from './types'
+import { generateRegularPolygon, getSidesForShape, validShapes } from './utils/shapes'
+import { generateTiling, countTilingVertices } from './utils/tilings'
+import { createWorkerHandler } from './workerHost'
+import type { RegularPolygonShape } from './utils/shapes'
+import type { TrianglifyOptions, Polygon, Point, CSSColor, Centroid, Shape, TilingShape, WorkerResponse } from './types'
+export type { TrianglifyOptions, RenderOpts, ColorFunctionParams, ColorFunction, ColorFunctionDescriptor, CSSColor, Polygon, PatternData, SVGTreeNode, SVGOptions, CanvasOptions, Shape, TilingShape, Point, Centroid, WorkerRequest, WorkerResponse } from './types'
 
 /** The frozen defaults for every option — see {@link TrianglifyOptions} for what each one does. */
 const defaultOptions: TrianglifyOptions = Object.freeze({
@@ -56,19 +58,43 @@ const isTilingShape = (shape: Shape): shape is TilingShape =>
 
 // The validators below are Record<union, true> maps rather than arrays:
 // the type forces compile-time completeness, so adding a member to a union
-// type without updating its validator is a type error here
+// type without updating its validator is a type error here (validShapes
+// lives in utils/shapes.ts, shared with Pattern.fromData)
 const validColorSpaces: Record<TrianglifyOptions['colorSpace'], true> = { rgb: true, hsv: true, hsl: true, hsi: true, lab: true, hcl: true }
-
-const validShapes: Record<Shape, true> = { triangle: true, pentagon: true, 'pentagon-cairo': true, 'pentagon-convex': true, 'pentagon-nonconvex': true, hexagon: true, heptagon: true, octagon: true, circle: true }
 
 const validPointGenerations: Record<TrianglifyOptions['pointGeneration'], true> = { grid: true, poisson: true, bestCandidate: true, spiral: true, sphere: true }
 
 const validSpiralDirections: Record<TrianglifyOptions['spiralDirection'], true> = { cw: true, ccw: true }
 
+// circles are approximated as high-sided polygons for gap computation but
+// rendered as true circles (see buildShapePolys)
+const CIRCLE_APPROX_SIDES = 24
+
 // guard against runaway allocations: a huge artboard with a tiny cellSize
-// would allocate the point grid (and the poisson accelerator) far beyond
+// would allocate point grids, shape vertices, or tiling geometry far beyond
 // anything renderable
 const MAX_POINTS = 1_000_000
+
+// Number of points generation would allocate at these options — counted per
+// shape, because shapes emit far more than their grid centers: N-gons append
+// `sides` vertices per center, circles append 24 gap-computation vertices
+// per center, hexagon grids pack rows at honeycomb spacing, and tilings
+// allocate raw pentagon vertices before dedup. Guarding on the center count
+// alone would pass configurations that then crash or hang in generation.
+const estimatePointCount = (opts: TrianglifyOptions): number => {
+  const { width, height, cellSize, shape } = opts
+  if (isTilingShape(shape)) {
+    return countTilingVertices(shape, width, height, cellSize)
+  }
+  const { pointCount } = shape === 'hexagon' && opts.pointGeneration === 'grid'
+    ? getHexGridDensity(width, height, cellSize)
+    : getGridDensity(width, height, cellSize)
+  if (shape === 'triangle') {
+    return pointCount
+  }
+  const sides = shape === 'circle' ? CIRCLE_APPROX_SIDES : getSidesForShape(shape)
+  return pointCount * (1 + sides)
+}
 
 const validateOptions = (_opts: Partial<TrianglifyOptions>): TrianglifyOptions => {
   Object.keys(_opts).forEach(k => {
@@ -87,15 +113,13 @@ const validateOptions = (_opts: Partial<TrianglifyOptions>): TrianglifyOptions =
   if (typeof opts.cellSize !== 'number' || !isFinite(opts.cellSize) || opts.cellSize < 1) {
     throw TypeError(`invalid cellSize: ${opts.cellSize}`)
   }
-  if (opts.points == null && getGridDensity(opts.width, opts.height, opts.cellSize).pointCount > MAX_POINTS) {
-    throw TypeError(`invalid cellSize: ${opts.cellSize} yields more than ${MAX_POINTS.toLocaleString('en-US')} points at ${opts.width}x${opts.height} — increase cellSize`)
-  }
   if (typeof opts.variance !== 'number' || !isFinite(opts.variance) || opts.variance < 0) {
     throw TypeError(`invalid variance: ${opts.variance}`)
   }
   if (opts.seed !== null && typeof opts.seed !== 'string' && typeof opts.seed !== 'number') {
     throw TypeError(`invalid seed: ${String(opts.seed)}`)
   }
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- the types say palette is never null, but validateOptions defends against untyped callers
   if (typeof opts.palette !== 'object' || opts.palette === null) {
     throw TypeError('invalid palette: expected a name→colors map or an array of color arrays')
   }
@@ -170,6 +194,12 @@ const validateOptions = (_opts: Partial<TrianglifyOptions>): TrianglifyOptions =
       throw TypeError(`custom points are not supported for tiling shape: ${opts.shape}`)
     }
   }
+  // allocation guard, checked after shape/pointGeneration validation because
+  // the estimate depends on them; custom points bypass it deliberately (the
+  // caller already owns that allocation)
+  if (opts.points == null && estimatePointCount(opts) > MAX_POINTS) {
+    throw TypeError(`invalid cellSize: ${opts.cellSize} would allocate more than ${MAX_POINTS.toLocaleString('en-US')} points at ${opts.width}x${opts.height} with shape: ${opts.shape} — increase cellSize`)
+  }
   return opts
 }
 
@@ -215,19 +245,14 @@ const buildTrianglePolys = (points: Point[], colorPoly: ColorPolyFn): Polygon[] 
 // Regular N-gon / circle pipeline: primary shapes plus Delaunay gap fill.
 // Appends the generated shape vertices to `points` in place — the same
 // array the returned pattern and the color functions see.
-const buildShapePolys = (points: Point[], shape: Shape, cellSize: number, colorPoly: ColorPolyFn): Polygon[] => {
+const buildShapePolys = (points: Point[], shape: RegularPolygonShape | 'circle', cellSize: number, colorPoly: ColorPolyFn): Polygon[] => {
   // For a regular N-gon, the apothem (center to edge midpoint) is
   // circumradius * cos(PI/N). For flat edges to meet at the midpoint
   // between grid centers: apothem = cellSize/2, giving
   // circumradius = cellSize / (2 * cos(PI/N)).
   // For circles, approximate as a high-sided polygon for gap computation
   // but render as true circles.
-  const approxSides = shape === 'circle' ? 24 : getSidesForShape(shape)
-  if (approxSides === null) {
-    // unreachable: validateOptions plus the triangle/tiling branches exhaust
-    // every other shape
-    throw TypeError(`invalid shape: ${shape}`)
-  }
+  const approxSides = shape === 'circle' ? CIRCLE_APPROX_SIDES : getSidesForShape(shape)
   const polys: Polygon[] = []
   const circumradius = cellSize / (2 * Math.cos(Math.PI / approxSides))
   const centerCount = points.length
@@ -382,7 +407,7 @@ function trianglify (_opts: Partial<TrianglifyOptions> = {}): Pattern {
   // use a different (salted) randomizer for the color function so that
   // swapping out color functions doesn't change the pattern geometry itself
   const salt = 42
-  const cRand = mulberry32(opts.seed != null ? String(opts.seed) + salt : null)
+  const cRand = mulberry32(opts.seed != null ? String(opts.seed) + String(salt) : null)
   const { width, height, shape } = opts
   const norm = (num: number) => Math.max(0, Math.min(1, num))
 
@@ -488,9 +513,7 @@ const getHexGridPoints = (
   variance: number,
   random: () => number
 ): Point[] => {
-  const rowSpacing = cellSize * Math.sqrt(3) / 2
-  const colCount = Math.floor(width / cellSize) + 4
-  const rowCount = Math.floor(height / rowSpacing) + 4
+  const { colCount, rowCount, rowSpacing } = getHexGridDensity(width, height, cellSize)
 
   const bleedX = ((colCount * cellSize) - width) / 2
   const bleedY = ((rowCount * rowSpacing) - height) / 2
@@ -521,5 +544,13 @@ export default Object.assign(trianglify, {
   colorFunctions,
   Pattern,
   TrianglifyWorker,
+  /**
+   * Build a worker-side message handler implementing the
+   * {@link TrianglifyWorker} protocol — for hand-rolled worker scripts
+   * (e.g. bundlers that compile workers from your own source files):
+   * `self.onmessage = e => handler(e.data)` with
+   * `const handler = trianglify.createWorkerHandler(r => self.postMessage(r))`.
+   */
+  createWorkerHandler: (post: (response: WorkerResponse) => void) => createWorkerHandler(trianglify, post),
   defaultOptions
 })

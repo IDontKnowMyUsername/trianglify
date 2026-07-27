@@ -3,7 +3,10 @@
   "compilerOptions": {
     "module": "CommonJS",
     "moduleResolution": "node",
-    "allowJs": true
+    "allowJs": true,
+    // tests mix ESM syntax with require() of dist bundles and compile to
+    // CommonJS via ts-jest — verbatimModuleSyntax would reject that mix
+    "verbatimModuleSyntax": false
   },
   "include": ["src/**/*.test.ts"],
   "exclude": ["node_modules"]

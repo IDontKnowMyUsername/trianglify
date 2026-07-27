@@ -7,9 +7,11 @@ Trianglify is a library that I wrote to generate nice SVG background images like
 
 # Contents
 [📦 Getting Trianglify](#-getting-trianglify)  
+&nbsp;&nbsp;[Module formats & TypeScript](#module-formats--typescript)  
 [🏎 Quickstart](#-quickstart)  
 [⚖️ Licensing](#%EF%B8%8F-licensing)  
 [📖 API](#-api)  
+&nbsp;&nbsp;[TrianglifyWorker](#trianglifyworker)  
 [🎨 Configuration](#-configuration)
 
 # 📦 Getting Trianglify
@@ -47,9 +49,11 @@ TypeScript definitions are bundled — `dist/trianglify.d.ts` for ESM consumers 
 import trianglify, { type TrianglifyOptions } from 'trianglify'
 ```
 
+The full set of importable types: `TrianglifyOptions`, `RenderOpts`, `Pattern` data types (`PatternData`, `Polygon`, `Point`, `Centroid`), color typing (`ColorFunction`, `ColorFunctionParams`, `ColorFunctionDescriptor`, `CSSColor`), rendering options (`SVGOptions`, `CanvasOptions`, `SVGTreeNode`), shape names (`Shape`, `TilingShape`), and the worker protocol (`WorkerRequest`, `WorkerResponse`).
+
 Consuming the CommonJS type definitions requires TypeScript >= 5.3 with `moduleResolution` set to `node16`/`nodenext` or `bundler` (the `.d.cts` uses `resolution-mode` import attributes). ESM consumers have no additional version floor.
 
-Node >= 18 is required. `chroma-js` is a regular dependency; `canvas` is an optional peer dependency needed only for `toCanvas()`/PNG output in Node.
+Node >= 20 is required. `chroma-js` is a regular dependency; `canvas` is an optional peer dependency needed only for `toCanvas()`/PNG output in Node.
 
 Upgrading from v4? See [**MIGRATING.md**](./MIGRATING.md) for the breaking-changes checklist.
 
@@ -81,9 +85,27 @@ const file = fs.createWriteStream('trianglify.png')
 canvas.createPNGStream().pipe(file)
 ```
 
+In ES modules, use `import trianglify from 'trianglify'` instead of the `require` call — everything else is identical (see [`examples/esm-node-example.mjs`](./examples/esm-node-example.mjs)).
+
 Note: `toCanvas()` in Node requires the optional [node-canvas](https://github.com/Automattic/node-canvas) peer dependency (`pnpm add canvas`). SVG output via `toSVG()`/`toSVGTree()` works without it.
 
-You can see the [`examples/`](./examples) folder for more usage examples, and the [`docs/`](./docs) folder for design notes (including the exact pentagonal-tiling geometry derivations).
+**CSS backgrounds**
+
+To use a pattern as a CSS background, serialize it into a data URI — as a vector SVG (crisp at any size, no canvas involved) or as a rasterized PNG:
+
+```js
+const pattern = trianglify({ width: 1200, height: 600 })
+
+// vector: SVG data URI
+const svg = pattern.toSVGTree().toString()
+document.body.style.backgroundImage =
+  `url("data:image/svg+xml,${encodeURIComponent(svg)}")`
+
+// raster: PNG data URI via canvas
+document.body.style.backgroundImage = `url(${pattern.toCanvas().toDataURL()})`
+```
+
+You can see the [`examples/`](./examples) folder for more usage examples, and the [`docs/`](./docs) folder for design notes (including the exact pentagonal-tiling geometry derivations). To contribute, start with [CONTRIBUTING.md](./CONTRIBUTING.md); to report a security issue, see [SECURITY.md](./SECURITY.md); release notes live in [changelog.txt](./changelog.txt).
 
 The https://trianglify.io/ GUI is a good place to play around with the various configuration parameters and see their effect on the generated output, live.
 
@@ -115,7 +137,7 @@ This object holds the generated geometry and colors, and exposes a number of met
 
 **`pattern.opts`**
 
-Object containing the options used to generate the pattern.
+Object containing the options used to generate the pattern. For patterns restored via `Pattern.fromData()` this is the narrower rendering subset (`RenderOpts`: `width`, `height`, `fill`, `strokeWidth`, `strokeColor`, `shape`) rather than the full generation options.
 
 
 **`pattern.points`**
@@ -243,6 +265,16 @@ const worker = new trianglify.TrianglifyWorker(
 
 See [`examples/web-worker-example.html`](./examples/web-worker-example.html) for a runnable demo.
 
+If your build setup compiles workers from your own source files instead of using the prebuilt bundle, `trianglify.createWorkerHandler` wires up a worker script that stays protocol-compatible with the `TrianglifyWorker` client:
+
+```js
+// my-worker.js — compiled as a worker entry by your bundler
+import trianglify from 'trianglify'
+
+const handleMessage = trianglify.createWorkerHandler(response => self.postMessage(response))
+self.onmessage = e => handleMessage(e.data)
+```
+
 **`worker.generate(options, { signal })`**
 
 Accepts the same options object as the `trianglify` function and returns a `Promise<Pattern>`. The optional second argument accepts an `AbortSignal` to cancel a pending generation:
@@ -297,6 +329,8 @@ Integer, defaults to `400`. Specify the height in pixels of the pattern to gener
 **`cellSize`**
 
 Integer, defaults to `75`. Specify the size in pixels of the mesh used to generate triangles. Larger values will result in coarser patterns, smaller values will result in finer patterns. Note that very small values may dramatically increase the runtime of Trianglify.
+
+As an allocation guard, combinations of `width`, `height`, `cellSize`, and `shape` that would allocate more than 1,000,000 points throw a `TypeError` (`invalid cellSize: … increase cellSize`). The estimate accounts for the geometry each shape emits — polygon and circle vertices per grid point, honeycomb row spacing, pentagonal-tiling density — not just the grid size. Supplying your own `points` bypasses the guard.
 
 **`variance`**
 
@@ -356,7 +390,7 @@ String or null, defaults to `null`. Specify a CSS-formatted color to use for pol
 
 **`points`**
 
-Array of points ([x, y]) to triangulate, defaults to null. When not specified an array randomised points is generated filling the space. Points must be within the coordinate space defined by `width` and `height`. Not supported with the pentagonal tiling shapes (`pentagon-cairo`, `pentagon-convex`, `pentagon-nonconvex`), which generate their own geometry — combining the two throws a TypeError. See [`examples/custom-points-example.html`](./examples/custom-points-example.html) for a demonstration of how this option can be used to generate circular trianglify patterns.
+Array of points ([x, y]) to triangulate, defaults to null. When not specified an array of randomised points is generated filling the space. Coordinates are not clamped to the `width` × `height` canvas — points outside it are accepted and simply produce geometry that extends past the visible area, so keep them inside (or slightly beyond) the canvas for full coverage. Degenerate inputs (fewer than 3 points, or all-collinear points, with the default `triangle` shape) produce a pattern with no polygons rather than an error. Not supported with the pentagonal tiling shapes (`pentagon-cairo`, `pentagon-convex`, `pentagon-nonconvex`), which generate their own geometry — combining the two throws a TypeError. See [`examples/custom-points-example.html`](./examples/custom-points-example.html) for a demonstration of how this option can be used to generate circular trianglify patterns.
 
 **`pointGeneration`**
 

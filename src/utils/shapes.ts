@@ -1,4 +1,18 @@
-import type { Point, Shape } from '../types'
+import type { Point, Shape, TilingShape } from '../types'
+
+/**
+ * The shapes rendered as one regular N-gon per grid point. Everything else
+ * builds its geometry elsewhere: triangle via Delaunay, circle via
+ * radius-based rendering (approximated as a 24-gon only for gap
+ * computation), tilings via their own generators.
+ */
+export type RegularPolygonShape = Exclude<Shape, TilingShape | 'triangle' | 'circle'>
+
+// Validity map for Shape values, shared by option validation
+// (trianglify.ts) and Pattern.fromData (pattern.ts). A Record<union, true>
+// rather than an array: the type forces compile-time completeness, so
+// adding a Shape member without updating this map is a type error.
+export const validShapes: Record<Shape, true> = Object.freeze({ triangle: true, pentagon: true, 'pentagon-cairo': true, 'pentagon-convex': true, 'pentagon-nonconvex': true, hexagon: true, heptagon: true, octagon: true, circle: true })
 
 /**
  * Generate vertices of a regular polygon centered at a point.
@@ -31,25 +45,17 @@ export function generateRegularPolygon(
 }
 
 /**
- * Get the number of sides for a given shape.
- * Returns null for shapes that don't use regular-polygon vertices (triangle
- * uses Delaunay, circle uses radius-based rendering, tilings generate their
- * own geometry).
+ * Get the number of sides for a regular-polygon shape.
  *
- * The switch is deliberately exhaustive with no default: adding a Shape
- * member without handling it here is a compile error (noImplicitReturns).
+ * The switch is deliberately exhaustive with no default: adding a
+ * RegularPolygonShape member without handling it here is a compile error
+ * (noImplicitReturns).
  */
-export function getSidesForShape(shape: Shape): number | null {
+export function getSidesForShape(shape: RegularPolygonShape): number {
   switch (shape) {
     case 'pentagon': return 5
     case 'hexagon': return 6
     case 'heptagon': return 7
     case 'octagon': return 8
-    case 'triangle':
-    case 'circle':
-    case 'pentagon-cairo':
-    case 'pentagon-convex':
-    case 'pentagon-nonconvex':
-      return null
   }
 }

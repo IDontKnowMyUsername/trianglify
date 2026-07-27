@@ -71,6 +71,18 @@ describe('Pattern.toData()', () => {
     const roundTripped = JSON.parse(JSON.stringify(data))
     expect(roundTripped).toEqual(data)
   })
+
+  test('output shares no structure with the pattern (mutation-safe)', () => {
+    const pattern = trianglify({ seed: 'isolation', width: 100, height: 100 })
+    const before = pattern.toSVGTree().toString()
+
+    const data = pattern.toData()
+    data.points[0][0] = 9999
+    data.polys[0].vertexIndices[0] = 0
+    data.polys[0].centroid.x = 9999
+
+    expect(pattern.toSVGTree().toString()).toBe(before)
+  })
 })
 
 describe('Pattern.fromData()', () => {
@@ -292,6 +304,24 @@ describe('Pattern.fromData() validation', () => {
     const badStroke = validData()
     badStroke.opts.strokeColor = 7
     expect(() => Pattern.fromData(badStroke)).toThrow('opts.strokeColor')
+  })
+
+  test('rejects an unknown opts.shape', () => {
+    const data = validData()
+    data.opts.shape = 'bogus'
+    expect(() => Pattern.fromData(data)).toThrow('opts.shape')
+  })
+
+  test('copies its input, so later mutation cannot corrupt the pattern', () => {
+    const data = validData()
+    const restored = Pattern.fromData(data)
+    const before = restored.toSVGTree().toString()
+
+    data.points[0][0] = 9999
+    data.polys[0].centroid.x = 9999
+    data.opts.strokeWidth = 50
+
+    expect(restored.toSVGTree().toString()).toBe(before)
   })
 
   test('accepts valid circle-pattern data round-trips', () => {

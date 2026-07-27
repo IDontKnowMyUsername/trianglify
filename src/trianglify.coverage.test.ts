@@ -1401,9 +1401,78 @@ describe('point count allocation guard', () => {
     expect(() => trianglify({ width: 100000, height: 100000, cellSize: 1 })).toThrow('increase cellSize')
   })
 
+  test('accounts for per-center vertex emission of circle shapes', () => {
+    // 646,416 grid centers pass a center-count-only guard, but each circle
+    // appends 24 gap-computation vertices — ~16M points that previously
+    // crashed deep in generation (Map maximum size exceeded)
+    expect(() => trianglify({ width: 4000, height: 4000, cellSize: 5, shape: 'circle' }))
+      .toThrow('increase cellSize')
+  })
+
+  test('accounts for regular-polygon vertex emission', () => {
+    expect(() => trianglify({ width: 2500, height: 2500, cellSize: 5, shape: 'pentagon' }))
+      .toThrow('increase cellSize')
+  })
+
+  test('accounts for pentagonal tiling density', () => {
+    // ~92k lattice centers pass a center-count-only guard, but the tiling
+    // allocates ~6.5M raw pentagon vertices — a multi-second hang
+    expect(() => trianglify({ width: 3000, height: 3000, cellSize: 10, shape: 'pentagon-nonconvex' }))
+      .toThrow('increase cellSize')
+  })
+
+  test('accounts for honeycomb row spacing of hexagon grids', () => {
+    // square-grid rows would count 957,816 centers (under the cap); the
+    // honeycomb packs rows √3/2 apart and each hexagon appends 6 vertices
+    expect(() => trianglify({ width: 1000, height: 950, cellSize: 1, shape: 'hexagon' }))
+      .toThrow('increase cellSize')
+  })
+
+  test('accepts large but renderable non-triangle patterns', () => {
+    expect(() => trianglify({ seed: 'guard-ok', width: 1920, height: 1080, cellSize: 75, shape: 'circle' })).not.toThrow()
+    expect(() => trianglify({ seed: 'guard-ok', width: 1920, height: 1080, cellSize: 75, shape: 'pentagon-cairo' })).not.toThrow()
+  })
+
   test('custom points bypass the generation-size guard', () => {
     const points: Array<[number, number]> = [[0, 0], [50000, 0], [0, 50000], [50000, 50000]]
     expect(() => trianglify({ width: 100000, height: 100000, cellSize: 1, points })).not.toThrow()
+  })
+})
+
+describe('render option validation', () => {
+  const pattern = () => trianglify({ seed: 'render-opts', width: 50, height: 50 })
+
+  test('rejects unknown SVG option keys', () => {
+    expect(() => pattern().toSVGTree({ decimals: 2 } as any)).toThrow('Unrecognized SVG option: decimals')
+  })
+
+  test('rejects malformed coordinateDecimals instead of emitting NaN paths', () => {
+    // 10 ** 400 is Infinity — before validation this silently produced
+    // d='MNaN,NaN…' output
+    expect(() => pattern().toSVGTree({ coordinateDecimals: 400 })).toThrow('invalid coordinateDecimals')
+    expect(() => pattern().toSVGTree({ coordinateDecimals: NaN })).toThrow('invalid coordinateDecimals')
+    expect(() => pattern().toSVGTree({ coordinateDecimals: 1.5 })).toThrow('invalid coordinateDecimals')
+  })
+
+  test('rejects non-boolean includeNamespace', () => {
+    expect(() => pattern().toSVGTree({ includeNamespace: 'yes' } as any)).toThrow('invalid includeNamespace')
+  })
+
+  test('coordinateDecimals bounds the decimals actually emitted', () => {
+    const svg = pattern().toSVGTree({ coordinateDecimals: 3 }).toString()
+    const numbers = svg.match(/-?\d+(\.\d+)?/g)!
+    expect(numbers.length).toBeGreaterThan(0)
+    for (const n of numbers) {
+      const frac = n.split('.')[1] ?? ''
+      expect(frac.length).toBeLessThanOrEqual(3)
+    }
+  })
+
+  test('rejects unknown canvas option keys and malformed values', () => {
+    expect(() => pattern().toCanvas(undefined, { scale: 2 } as any)).toThrow('Unrecognized canvas option: scale')
+    expect(() => pattern().toCanvas(undefined, { scaling: -2 })).toThrow('invalid scaling')
+    expect(() => pattern().toCanvas(undefined, { scaling: NaN })).toThrow('invalid scaling')
+    expect(() => pattern().toCanvas(undefined, { applyCssScaling: 1 } as any)).toThrow('invalid applyCssScaling')
   })
 })
 

@@ -1,0 +1,34 @@
+# Audits the locked dependency tree against published advisories.
+# dependency-review (build.yml) only sees dependency changes in PR diffs —
+# an advisory published against an already-pinned dependency needs this
+# recurring signal, hence the weekly cron alongside push/PR triggers.
+name: audit
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+  schedule:
+    - cron: '45 5 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+    - name: Install pnpm
+      uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5
+    - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+      with:
+        node-version: 22
+    # audits pnpm-lock.yaml directly — no install needed. Production deps
+    # gate the build (that's what consumers install); the dev-dependency
+    # tree is reported but non-blocking, since transitive advisories there
+    # are frequent and rarely actionable until upstream releases
+    - run: pnpm audit --prod --audit-level high
+    - name: Report dev-dependency advisories (non-blocking)
+      run: pnpm audit --audit-level high || true

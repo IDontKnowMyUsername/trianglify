@@ -18,8 +18,12 @@ interface PostedMessage {
 class MockWorker {
   static instances: MockWorker[] = []
   url: string
+  // assignable handler slots, like a real Worker — the client must NOT
+  // touch these (it attaches via addEventListener), so tests can verify
+  // caller-installed handlers survive
   onmessage: ((e: { data: any }) => void) | null = null
   onerror: ((e: { message: string }) => void) | null = null
+  listeners: { message: Array<(e: { data: any }) => void>; error: Array<(e: { message: string }) => void> } = { message: [], error: [] }
   posted: PostedMessage[] = []
   terminated = false
 
@@ -31,6 +35,10 @@ class MockWorker {
     MockWorker.instances.push(this)
   }
 
+  addEventListener (type: 'message' | 'error', listener: (e: any) => void): void {
+    this.listeners[type].push(listener)
+  }
+
   postMessage (msg: PostedMessage): void {
     this.posted.push(msg)
   }
@@ -39,13 +47,24 @@ class MockWorker {
     this.terminated = true
   }
 
-  // test helpers simulating worker responses
+  // test helpers simulating worker events: dispatch to the assigned
+  // handler slot and to every addEventListener listener, like a real Worker
+  dispatchMessage (data: unknown): void {
+    this.onmessage?.({ data })
+    for (const listener of this.listeners.message) listener({ data })
+  }
+
+  dispatchError (message: string): void {
+    this.onerror?.({ message })
+    for (const listener of this.listeners.error) listener({ message })
+  }
+
   respond (id: number, data: unknown): void {
-    this.onmessage?.({ data: { id, data } })
+    this.dispatchMessage({ id, data })
   }
 
   respondError (id: number, error: string): void {
-    this.onmessage?.({ data: { id, error } })
+    this.dispatchMessage({ id, error })
   }
 }
 
@@ -89,6 +108,21 @@ describe('construction', () => {
     const promise = client.generate({ width: 100, height: 100 })
     instance.respond(instance.posted[0]!.id, patternData())
     await expect(promise).resolves.toBeInstanceOf(Pattern)
+  })
+
+  test('does not clobber handlers on a caller-supplied Worker', async () => {
+    const instance = new MockWorker('shared.js')
+    const callerHandler = jest.fn()
+    instance.onmessage = callerHandler
+    const client = new TrianglifyWorker(instance)
+
+    const promise = client.generate({ width: 100, height: 100 })
+    instance.respond(instance.posted[0]!.id, patternData())
+    await expect(promise).resolves.toBeInstanceOf(Pattern)
+
+    // the caller's own handler is still installed and still receives events
+    expect(instance.onmessage).toBe(callerHandler)
+    expect(callerHandler).toHaveBeenCalled()
   })
 })
 
@@ -135,7 +169,7 @@ describe('generate()', () => {
 
   test('rejects when the worker returns neither data nor error', async () => {
     const promise = worker.generate({})
-    mock.onmessage?.({ data: { id: mock.posted[0]!.id } })
+    mock.dispatchMessage({ id: mock.posted[0]!.id })
     await expect(promise).rejects.toThrow('Worker returned neither data nor error')
   })
 
@@ -160,13 +194,13 @@ describe('generate()', () => {
 
     // pending map must be empty: a stale response for that id is a no-op,
     // and aborting afterwards must not throw either
-    expect(() => mock.respond(0, patternData())).not.toThrow()
-    expect(() => controller.abort()).not.toThrow()
+    expect(() => { mock.respond(0, patternData()); }).not.toThrow()
+    expect(() => { controller.abort(); }).not.toThrow()
   })
 
   test('ignores responses with unknown ids', async () => {
     const promise = worker.generate({})
-    expect(() => mock.respond(999, patternData())).not.toThrow()
+    expect(() => { mock.respond(999, patternData()); }).not.toThrow()
 
     // the real response must still resolve normally afterwards
     mock.respond(mock.posted[0]!.id, patternData())
@@ -205,7 +239,7 @@ describe('abort', () => {
     await expect(promise).rejects.toMatchObject({ name: 'AbortError' })
 
     // a response arriving after abort must not throw or resurrect anything
-    expect(() => mock.respond(mock.posted[0]!.id, patternData())).not.toThrow()
+    expect(() => { mock.respond(mock.posted[0]!.id, patternData()); }).not.toThrow()
   })
 
   test('aborting after resolution has no effect', async () => {
@@ -220,11 +254,11 @@ describe('abort', () => {
 })
 
 describe('worker-level errors', () => {
-  test('onerror rejects all pending generates', async () => {
+  test('a worker error event rejects all pending generates', async () => {
     const p1 = worker.generate({})
     const p2 = worker.generate({})
 
-    mock.onerror?.({ message: 'worker script failed to load' })
+    mock.dispatchError('worker script failed to load')
 
     await expect(p1).rejects.toThrow('worker script failed to load')
     await expect(p2).rejects.toThrow('worker script failed to load')

@@ -5,6 +5,24 @@ export interface TilingResult {
   polys: number[][]
 }
 
+// A tiling reduced to translation form: the prototiles (all pentagons
+// around one lattice point, rotations/mirrors already applied), the
+// lattice vectors that translate them across the plane, and the
+// latticeBounds padding margin. generateTiling stamps this out;
+// countTilingVertices sizes it without stamping.
+interface TilingLayout {
+  prototiles: Point[][]
+  ux: number
+  uy: number
+  vx: number
+  vy: number
+  pad: number
+}
+
+// padding margin in lattice pitches applied outside the canvas on every
+// side, so edge polygons fully cover the artboard
+const bleed = 2
+
 /**
  * Merge coincident vertices via spatial hashing so adjacent
  * pentagons share edge vertices cleanly (no hairline gaps).
@@ -94,7 +112,7 @@ function latticeBounds(
 // pentagons rotated 0°, 90°, 180°, 270°. The lattice connects
 // same-type centers (skipping the alternating type-B centers at v3).
 
-function generateCairoTiling(width: number, height: number, cellSize: number): TilingResult {
+function cairoLayout(cellSize: number): TilingLayout {
   const s7 = Math.sqrt(7)
 
   // Lattice constant L (distance between same-type 4-fold centers)
@@ -126,28 +144,11 @@ function generateCairoTiling(width: number, height: number, cellSize: number): T
   const ux = a * (1 + s7) / 4, uy = a * (7 + s7) / 4
   const vx = a * (7 + s7) / 4, vy = -a * (1 + s7) / 4
 
-  const bleed = 2
-  const { i0, i1, j0, j1 } = latticeBounds(ux, uy, vx, vy, width, height, bleed * L)
-
-  const rawPolys: Point[][] = []
-
-  for (let j = j0; j <= j1; j++) {
-    for (let i = i0; i <= i1; i++) {
-      // 4-fold center position
-      const cx = i * ux + j * vx
-      const cy = i * uy + j * vy
-
-      // Generate all 4 rotations of the base pentagon
-      for (const rot of rotations) {
-        rawPolys.push(basePent.map(p => {
-          const [rx, ry] = rot(p)
-          return [rx + cx, ry + cy] as Point
-        }))
-      }
-    }
+  return {
+    prototiles: rotations.map(rot => basePent.map(rot)),
+    ux, uy, vx, vy,
+    pad: bleed * L
   }
-
-  return deduplicateVertices(rawPolys)
 }
 
 // ─── Irregular Convex Pentagon Tiling ────────────────────────────
@@ -160,7 +161,7 @@ function generateCairoTiling(width: number, height: number, cellSize: number): T
 // rotated 0°, 60°, 120°, 180°, 240°, 300°. The triangular lattice
 // connects rosette centers with spacing s√21/2.
 
-function generateConvexTiling(width: number, height: number, cellSize: number): TilingResult {
+function convexLayout(cellSize: number): TilingLayout {
   const s3 = Math.sqrt(3)
 
   // cellSize = s√21/2 → s = 2·cellSize/√21
@@ -191,28 +192,11 @@ function generateConvexTiling(width: number, height: number, cellSize: number): 
   const ux = 9 * s / 4, uy = s * s3 / 4
   const vx = 3 * s / 4, vy = 5 * s * s3 / 4
 
-  const bleed = 2
-  const { i0, i1, j0, j1 } = latticeBounds(ux, uy, vx, vy, width, height, bleed * cellSize)
-
-  const rawPolys: Point[][] = []
-
-  for (let j = j0; j <= j1; j++) {
-    for (let i = i0; i <= i1; i++) {
-      // Rosette center position
-      const cx = i * ux + j * vx
-      const cy = i * uy + j * vy
-
-      // Generate all 6 rotations of the base pentagon
-      for (const rot of rotations) {
-        rawPolys.push(basePent.map(p => {
-          const [rx, ry] = rot(p)
-          return [rx + cx, ry + cy] as Point
-        }))
-      }
-    }
+  return {
+    prototiles: rotations.map(rot => basePent.map(rot)),
+    ux, uy, vx, vy,
+    pad: bleed * cellSize
   }
-
-  return deduplicateVertices(rawPolys)
 }
 
 // ─── Irregular Non-Convex Pentagon Tiling ────────────────────────
@@ -232,7 +216,7 @@ function generateConvexTiling(width: number, height: number, cellSize: number): 
 // each rosette center (B vertex), place 12 pentagons alternating
 // normal/mirror on the lattice u = C − rot(E, 120°), v = rot(u, 60°).
 
-function generateNonconvexTiling(width: number, height: number, cellSize: number): TilingResult {
+function nonconvexLayout(cellSize: number): TilingLayout {
   // 12 petals → 30° each. Half-angle = 15°.
   const halfAngle = Math.PI / 12
   const cosH = Math.cos(halfAngle)
@@ -289,41 +273,57 @@ function generateNonconvexTiling(width: number, height: number, cellSize: number
   const c60 = Math.cos(Math.PI / 3), s60 = Math.sin(Math.PI / 3)
   const vx = ux * c60 - uy * s60, vy = ux * s60 + uy * c60
 
-  const bleed = 2
-  const latticeLen = Math.sqrt(ux * ux + uy * uy)
-  const { i0, i1, j0, j1 } = latticeBounds(ux, uy, vx, vy, width, height, bleed * latticeLen)
-
-  const rawPolys: Point[][] = []
-
-  for (let j = j0; j <= j1; j++) {
-    for (let i = i0; i <= i1; i++) {
-      const cx = i * ux + j * vx
-      const cy = i * uy + j * vy
-
-      for (let k = 0; k < 12; k++) {
-        const pent = k % 2 === 0 ? basePent : mirrorPent
-        const step = Math.PI / 6  // 30°
-        const angle = k * step
-        const ca = Math.cos(angle), sa = Math.sin(angle)
-
-        rawPolys.push(pent.map(([px, py]) => {
-          return [px * ca - py * sa + cx, px * sa + py * ca + cy] as Point
-        }))
-      }
-    }
+  // 12 petals around each rosette center, alternating normal/mirror
+  const prototiles: Point[][] = []
+  for (let k = 0; k < 12; k++) {
+    const pent = k % 2 === 0 ? basePent : mirrorPent
+    const step = Math.PI / 6  // 30°
+    const angle = k * step
+    const ca = Math.cos(angle), sa = Math.sin(angle)
+    prototiles.push(pent.map(([px, py]) => {
+      return [px * ca - py * sa, px * sa + py * ca] as Point
+    }))
   }
 
-  return deduplicateVertices(rawPolys)
+  const latticeLen = Math.sqrt(ux * ux + uy * uy)
+  return { prototiles, ux, uy, vx, vy, pad: bleed * latticeLen }
 }
 
 // ─── Dispatcher ──────────────────────────────────────────────────
 
 // Exhaustive over TilingShape with no default: adding a tiling shape
 // without handling it here is a compile error (noImplicitReturns).
-export function generateTiling(shape: TilingShape, width: number, height: number, cellSize: number): TilingResult {
+function getLayout(shape: TilingShape, cellSize: number): TilingLayout {
   switch (shape) {
-    case 'pentagon-cairo': return generateCairoTiling(width, height, cellSize)
-    case 'pentagon-convex': return generateConvexTiling(width, height, cellSize)
-    case 'pentagon-nonconvex': return generateNonconvexTiling(width, height, cellSize)
+    case 'pentagon-cairo': return cairoLayout(cellSize)
+    case 'pentagon-convex': return convexLayout(cellSize)
+    case 'pentagon-nonconvex': return nonconvexLayout(cellSize)
   }
+}
+
+export function generateTiling(shape: TilingShape, width: number, height: number, cellSize: number): TilingResult {
+  const { prototiles, ux, uy, vx, vy, pad } = getLayout(shape, cellSize)
+  const { i0, i1, j0, j1 } = latticeBounds(ux, uy, vx, vy, width, height, pad)
+
+  const rawPolys: Point[][] = []
+  for (let j = j0; j <= j1; j++) {
+    for (let i = i0; i <= i1; i++) {
+      const cx = i * ux + j * vx
+      const cy = i * uy + j * vy
+      for (const tile of prototiles) {
+        rawPolys.push(tile.map(([px, py]) => [px + cx, py + cy] as Point))
+      }
+    }
+  }
+  return deduplicateVertices(rawPolys)
+}
+
+// Raw vertex count generateTiling would allocate before vertex dedup — lets
+// the allocation guard in validateOptions size a tiling without generating
+// it. Reuses the exact layout and latticeBounds math above, so the count
+// always matches what generateTiling would emit.
+export function countTilingVertices(shape: TilingShape, width: number, height: number, cellSize: number): number {
+  const { prototiles, ux, uy, vx, vy, pad } = getLayout(shape, cellSize)
+  const { i0, i1, j0, j1 } = latticeBounds(ux, uy, vx, vy, width, height, pad)
+  return (i1 - i0 + 1) * (j1 - j0 + 1) * prototiles.length * 5
 }

@@ -40,7 +40,8 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest]
-        node-version: [18, 20, 22, 24]
+        # floor matches engines.node (>= 20; node 18 is EOL)
+        node-version: [20, 22, 24]
         # one leg per non-linux OS — the canvas peer dependency is a native
         # module, so Node consumers on windows/macos deserve a real signal
         include:

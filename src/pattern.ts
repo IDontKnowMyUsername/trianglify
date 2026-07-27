@@ -1,8 +1,7 @@
 import getScalingRatio from './utils/getScalingRatio'
 import { isBrowser } from './utils/env'
-import type { Point, CSSColor, Polygon, TrianglifyOptions, RenderOpts, PatternData, SVGTreeNode, SVGOptions, CanvasOptions } from './types'
-
-type SVGAttrs = Record<string, string | number | undefined>
+import { validShapes } from './utils/shapes'
+import type { Point, CSSColor, Polygon, TrianglifyOptions, RenderOpts, PatternData, SVGTreeNode, SVGAttrs, SVGOptions, CanvasOptions } from './types'
 
 declare const require: (id: string) => { createCanvas: (w: number, h: number) => HTMLCanvasElement }
 
@@ -25,16 +24,16 @@ const doc = isBrowser && document
 type Serializer<T> = (tagName: string, attrs: SVGAttrs, children?: T[], existingRoot?: T | null) => T
 
 // utility for building up SVG node trees with the DOM API
-const sDOM: Serializer<SVGElement> = (tagName, attrs = {}, children?, existingRoot?) => {
+const sDOM: Serializer<SVGElement> = (tagName, attrs, children?, existingRoot?) => {
   const elem = existingRoot || (doc as Document).createElementNS('http://www.w3.org/2000/svg', tagName)
   if (existingRoot) {
     // re-rendering into an existing root replaces its content rather than
     // appending a second copy of the pattern
     while (elem.firstChild) elem.removeChild(elem.firstChild)
   }
-  Object.entries(attrs).forEach(
-    ([k, v]) => v !== undefined && elem.setAttribute(k, String(v))
-  )
+  Object.entries(attrs).forEach(([k, v]) => {
+    if (v !== undefined) elem.setAttribute(k, String(v))
+  })
   children && children.forEach(c => elem.appendChild(c))
   return elem
 }
@@ -54,7 +53,7 @@ const serializeAttrs = (attrs: SVGAttrs): string => (
 )
 
 // minimal XML-tree builder for use in Node
-const sNode: Serializer<SVGTreeNode> = (tagName, attrs = {}, children?) => ({
+const sNode: Serializer<SVGTreeNode> = (tagName, attrs, children?) => ({
   tagName,
   attrs,
   children: children || null,
@@ -70,27 +69,34 @@ const fail = (msg: string): never => {
 
 const isFiniteNumber = (v: unknown): v is number => typeof v === 'number' && isFinite(v)
 
-const validatePatternData = (data: PatternData): void => {
+// takes `unknown`, not PatternData: the input is untrusted by definition,
+// and typing it as already-valid would force callers with wire data into
+// dishonest casts (declared as a function so the assertion signature works)
+function validatePatternData (data: unknown): asserts data is PatternData {
   if (typeof data !== 'object' || data === null) fail('expected an object')
-  const { points, polys, opts } = data
+  const { points: rawPoints, polys: rawPolys, opts } = data as Record<string, unknown>
 
-  if (!Array.isArray(points)) fail('points must be an array')
+  if (!Array.isArray(rawPoints)) fail('points must be an array')
+  const points = rawPoints as unknown[]
   for (const p of points) {
     if (!Array.isArray(p) || !isFiniteNumber(p[0]) || !isFiniteNumber(p[1])) {
       fail(`points entries must be [x, y] pairs of finite numbers, got ${JSON.stringify(p)}`)
     }
   }
 
-  if (!Array.isArray(polys)) fail('polys must be an array')
-  for (const poly of polys) {
-    if (typeof poly !== 'object' || poly === null) fail(`polys entries must be objects, got ${JSON.stringify(poly)}`)
+  if (!Array.isArray(rawPolys)) fail('polys must be an array')
+  for (const rawPoly of rawPolys as unknown[]) {
+    if (typeof rawPoly !== 'object' || rawPoly === null) fail(`polys entries must be objects, got ${JSON.stringify(rawPoly)}`)
+    const poly = rawPoly as Record<string, unknown>
     if (!Array.isArray(poly.vertexIndices)) fail('poly.vertexIndices must be an array')
-    for (const vi of poly.vertexIndices) {
-      if (!Number.isInteger(vi) || vi < 0 || vi >= points.length) {
+    const vertexIndices = poly.vertexIndices as unknown[]
+    for (const vi of vertexIndices) {
+      if (typeof vi !== 'number' || !Number.isInteger(vi) || vi < 0 || vi >= points.length) {
         fail(`poly.vertexIndices entry ${JSON.stringify(vi)} is not an index into points (length ${points.length})`)
       }
     }
-    if (typeof poly.centroid !== 'object' || poly.centroid === null || !isFiniteNumber(poly.centroid.x) || !isFiniteNumber(poly.centroid.y)) {
+    const centroid = poly.centroid as Record<string, unknown> | null
+    if (typeof centroid !== 'object' || centroid === null || !isFiniteNumber(centroid.x) || !isFiniteNumber(centroid.y)) {
       fail(`poly.centroid must be {x, y} with finite numbers, got ${JSON.stringify(poly.centroid)}`)
     }
     if (typeof poly.color !== 'string') {
@@ -99,17 +105,43 @@ const validatePatternData = (data: PatternData): void => {
     if (poly.radius != null && (!isFiniteNumber(poly.radius) || poly.radius < 0)) {
       fail(`poly.radius must be a non-negative finite number, got ${JSON.stringify(poly.radius)}`)
     }
-    if (poly.vertexIndices.length === 0 && poly.radius == null) {
+    if (vertexIndices.length === 0 && poly.radius == null) {
       fail('a poly with no vertexIndices must have a radius (circle)')
     }
   }
 
   if (typeof opts !== 'object' || opts === null) fail('opts must be an object')
-  if (!isFiniteNumber(opts.width) || opts.width <= 0) fail(`opts.width must be a positive finite number, got ${JSON.stringify(opts.width)}`)
-  if (!isFiniteNumber(opts.height) || opts.height <= 0) fail(`opts.height must be a positive finite number, got ${JSON.stringify(opts.height)}`)
-  if (typeof opts.fill !== 'boolean') fail(`opts.fill must be a boolean, got ${JSON.stringify(opts.fill)}`)
-  if (!isFiniteNumber(opts.strokeWidth) || opts.strokeWidth < 0) fail(`opts.strokeWidth must be a non-negative finite number, got ${JSON.stringify(opts.strokeWidth)}`)
-  if (opts.strokeColor !== null && typeof opts.strokeColor !== 'string') fail(`opts.strokeColor must be a string or null, got ${JSON.stringify(opts.strokeColor)}`)
+  const o = opts as Record<string, unknown>
+  if (!isFiniteNumber(o.width) || o.width <= 0) fail(`opts.width must be a positive finite number, got ${JSON.stringify(o.width)}`)
+  if (!isFiniteNumber(o.height) || o.height <= 0) fail(`opts.height must be a positive finite number, got ${JSON.stringify(o.height)}`)
+  if (typeof o.fill !== 'boolean') fail(`opts.fill must be a boolean, got ${JSON.stringify(o.fill)}`)
+  if (!isFiniteNumber(o.strokeWidth) || o.strokeWidth < 0) fail(`opts.strokeWidth must be a non-negative finite number, got ${JSON.stringify(o.strokeWidth)}`)
+  if (o.strokeColor !== null && typeof o.strokeColor !== 'string') fail(`opts.strokeColor must be a string or null, got ${JSON.stringify(o.strokeColor)}`)
+  if (typeof o.shape !== 'string' || !Object.hasOwn(validShapes, o.shape)) fail(`opts.shape must be a valid shape name, got ${JSON.stringify(o.shape)}`)
+}
+
+// circles serialize with a radius and no vertex geometry — the single
+// predicate for telling them apart from polygon shapes when rendering
+const isCircle = (poly: Polygon): poly is Polygon & { radius: number } =>
+  poly.radius != null && poly.vertexIndices.length === 0
+
+const defaultSVGOptions = { includeNamespace: true, coordinateDecimals: 1 }
+
+const defaultCanvasOptions = {
+  scaling: isBrowser ? 'auto' as const : false as const,
+  applyCssScaling: isBrowser
+}
+
+// render options get the same strictness as generation options in
+// trianglify.ts: unknown keys and malformed values throw instead of being
+// silently accepted (a NaN coordinateDecimals would otherwise emit
+// d='MNaN,NaN…' paths without complaint)
+const rejectUnknownKeys = (given: object, defaults: object, kind: string): void => {
+  for (const k of Object.keys(given)) {
+    if (!Object.hasOwn(defaults, k)) {
+      throw TypeError(`Unrecognized ${kind} option: ${k}`)
+    }
+  }
 }
 
 /**
@@ -137,15 +169,16 @@ export default class Pattern {
    * Serialize the pattern to a plain object that survives
    * `JSON.stringify`/`postMessage` (colors become CSS strings). Restore it
    * with {@link Pattern.fromData}. Useful for caching patterns and for
-   * transferring them out of a Web Worker.
+   * transferring them out of a Web Worker. The returned object shares no
+   * structure with the pattern — mutating one never affects the other.
    */
   toData (): PatternData {
     const { width, height, fill, strokeWidth, strokeColor, shape } = this.opts
     return {
-      points: this.points,
+      points: this.points.map((p): Point => [p[0], p[1]]),
       polys: this.polys.map(poly => ({
-        vertexIndices: poly.vertexIndices,
-        centroid: poly.centroid,
+        vertexIndices: [...poly.vertexIndices],
+        centroid: { ...poly.centroid },
         color: poly.color.css(),
         ...(poly.radius != null ? { radius: poly.radius } : {})
       })),
@@ -158,44 +191,49 @@ export default class Pattern {
    * {@link toData}). The returned pattern supports `toCanvas()` and
    * `toSVG()` rendering. Malformed data throws a TypeError — the data often
    * arrives from a postMessage boundary or a JSON cache, so it is validated
-   * structurally rather than trusted.
+   * structurally rather than trusted. The pattern copies the input, so
+   * later mutation of `data` cannot corrupt it.
    */
-  static fromData (data: PatternData): Pattern {
+  static fromData (data: unknown): Pattern {
     validatePatternData(data)
     const polys: Polygon[] = data.polys.map(poly => ({
-      vertexIndices: poly.vertexIndices,
-      centroid: poly.centroid,
+      vertexIndices: [...poly.vertexIndices],
+      centroid: { ...poly.centroid },
       color: { css: () => poly.color },
       ...(poly.radius != null ? { radius: poly.radius } : {})
     }))
-    return new Pattern(data.points, polys, data.opts)
+    return new Pattern(data.points.map((p): Point => [p[0], p[1]]), polys, { ...data.opts })
   }
 
   private _toSVG<T> (serializer: Serializer<T>, destSVG: T | null, _svgOpts: SVGOptions = {}): T {
     const s = serializer
-    const defaultSVGOptions = { includeNamespace: true, coordinateDecimals: 1 }
+    rejectUnknownKeys(_svgOpts, defaultSVGOptions, 'SVG')
     const svgOpts = { ...defaultSVGOptions, ..._svgOpts }
+    if (typeof svgOpts.includeNamespace !== 'boolean') {
+      throw TypeError(`invalid includeNamespace: ${String(svgOpts.includeNamespace)}`)
+    }
+    const decimals = svgOpts.coordinateDecimals
+    if (typeof decimals !== 'number' || !Number.isInteger(decimals) || decimals < -1 || decimals > 15) {
+      throw TypeError(`invalid coordinateDecimals: ${String(decimals)} (expected an integer between -1 and 15; -1 disables rounding)`)
+    }
     const { points, polys, opts } = this
     const { width, height, fill, strokeWidth, strokeColor } = opts
 
     // only round points if the coordinateDecimals option is non-negative
     // set coordinateDecimals to -1 to disable point rounding
-    const roundedPoints = (svgOpts.coordinateDecimals < 0)
-      ? points
-      : (() => {
-          const factor = 10 ** svgOpts.coordinateDecimals
-          return points.map((p): Point => [Math.round(p[0] * factor) / factor, Math.round(p[1] * factor) / factor])
-        })()
-
-    const round = svgOpts.coordinateDecimals < 0
+    const round = decimals < 0
       ? (v: number) => v
-      : (() => { const f = 10 ** svgOpts.coordinateDecimals; return (v: number) => Math.round(v * f) / f })()
+      : (() => { const f = 10 ** decimals; return (v: number) => Math.round(v * f) / f })()
+
+    const roundedPoints = decimals < 0
+      ? points
+      : points.map((p): Point => [round(p[0]), round(p[1])])
+
+    const hasStroke = strokeWidth > 0
 
     const paths = polys.map((poly) => {
-      const hasStroke = strokeWidth > 0
-
       // Circle shapes: render as <circle> instead of <path>
-      if (poly.radius != null && poly.vertexIndices.length === 0) {
+      if (isCircle(poly)) {
         return s('circle', {
           cx: round(poly.centroid.x),
           cy: round(poly.centroid.y),
@@ -266,11 +304,15 @@ export default class Pattern {
    * the optional `canvas` package and renders at exactly `width` × `height`.
    */
   toCanvas (destCanvas?: HTMLCanvasElement, _canvasOpts: CanvasOptions = {}): HTMLCanvasElement {
-    const defaultCanvasOptions = {
-      scaling: isBrowser ? 'auto' as const : false as const,
-      applyCssScaling: !!isBrowser
-    }
+    rejectUnknownKeys(_canvasOpts, defaultCanvasOptions, 'canvas')
     const canvasOpts = { ...defaultCanvasOptions, ..._canvasOpts }
+    const { scaling } = canvasOpts
+    if (scaling !== 'auto' && scaling !== false && (typeof scaling !== 'number' || !isFinite(scaling) || scaling <= 0)) {
+      throw TypeError(`invalid scaling: ${String(scaling)} (expected 'auto', false, or a positive number)`)
+    }
+    if (typeof canvasOpts.applyCssScaling !== 'boolean') {
+      throw TypeError(`invalid applyCssScaling: ${String(canvasOpts.applyCssScaling)}`)
+    }
     const { points, polys, opts } = this
     const { width, height, fill, strokeWidth, strokeColor } = opts
 
@@ -316,7 +358,7 @@ export default class Pattern {
     const drawPoly = (poly: Polygon, polyFill: { color: CSSColor } | null | false, stroke: { color: CSSColor; width: number } | false) => {
       ctx.beginPath()
 
-      if (poly.radius != null && poly.vertexIndices.length === 0) {
+      if (isCircle(poly)) {
         // Circle shape
         ctx.arc(poly.centroid.x, poly.centroid.y, poly.radius, 0, 2 * Math.PI)
       } else {
@@ -348,7 +390,7 @@ export default class Pattern {
       // Only when strokes reuse each poly's fill color: with an explicit
       // strokeColor the fill-colored halo would bleed past the visible
       // stroke, and the SVG renderer draws no halo either.
-      polys.forEach(poly => drawPoly(poly, null, { color: poly.color, width: 2 }))
+      polys.forEach(poly => { drawPoly(poly, null, { color: poly.color, width: 2 }); })
     }
 
     // draw visible fills and strokes
