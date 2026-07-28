@@ -19,6 +19,7 @@ declare module 'culori/fn' {
   export function interpolate(colors: (CuloriColor | string)[], mode?: string): (t: number) => CuloriColor
   export function formatCss(color: CuloriColor | string | undefined): string | undefined
   export function parse(color: string): CuloriColor | undefined
+  export function toGamut(dest?: string, mode?: string, delta?: unknown, jnd?: number): (color: CuloriColor | string) => CuloriColor
 
   export const modeRgb: CuloriModeDefinition
   export const modeLrgb: CuloriModeDefinition

@@ -172,6 +172,75 @@ for (const shape of TILING_SHAPES) {
   })
 }
 
+describe('vertex dedup adjacent-bucket fallback', () => {
+  // deduplicateVertices (src/utils/tilings.ts) merges coincident vertices
+  // through a bucket map quantized at EPSILON = 1e-4. Normally both float
+  // representations of a duplicated lattice vertex round into the same
+  // bucket (the home-bucket fast path); the 3x3 adjacent-bucket fallback
+  // exists for the rare case where a bucket boundary falls between two
+  // representations that differ by a few ulps. These parameter sets were
+  // found by an offline search so that at least one duplicated vertex
+  // straddles a bucket boundary — they keep the fallback (the correctness
+  // guard against splitting one vertex into two indices) exercised.
+  //
+  // How they were constructed (docs/gamut-mapping-and-dedup-fallback-plan.md,
+  // Part 2 — note the plan's random parameter sweep is hopeless in practice:
+  // representations differ by only a few ulps, so a random pattern straddles
+  // with probability ~ulps/EPSILON ≈ 1e-8 per pair; ~24k sampled parameter
+  // sets over three canvases found nothing). Instead the cases were solved
+  // for directly: replicate the layout+stamping arithmetic offline, list
+  // duplicate pairs whose representations differ in bits, exploit that
+  // coordinates scale ~linearly with cellSize to aim a bucket boundary into
+  // a pair's interval, then micro-scan cellSize in ulp steps (each step
+  // moves a coordinate by ~1 of its ulps, so the few-ulp window cannot be
+  // stepped over) until the straddle appears. Every case was then verified
+  // against the built bundle by watching the fallback's block-execution
+  // count with V8 precise coverage (node:inspector,
+  // Profiler.takePreciseCoverage) in an isolated process.
+  //
+  // Several independent cases are pinned because Math.cos/Math.sin last-ulp
+  // results are V8-version-dependent: an engine libm change could shift a
+  // case off the boundary. That would not fail this test (the invariants
+  // hold either way) but would silently drop fallback coverage — multiple
+  // cases make losing all of them at once unlikely. If a V8 upgrade ever
+  // zeroes the fallback's coverage, re-run the solver to mint new cases.
+  const CASES: [string, number, number, number, number][] = [
+    // [shape, width, height, cellSize, expected points.length]
+    ['pentagon-cairo', 240, 240, 46.99994957762656, 1633],
+    ['pentagon-cairo', 240, 240, 46.99996126356695, 1633],
+    ['pentagon-convex', 240, 240, 46.99998909551744, 2644],
+    ['pentagon-convex', 240, 240, 46.99998959909718, 2644],
+    ['pentagon-nonconvex', 240, 240, 46.99999881880728, 6321]
+  ]
+
+  const EPSILON = 1e-4
+
+  test.each(CASES)('%s at cellSize %s dedups across bucket boundaries', (shape, width, height, cellSize, expectedPoints) => {
+    const pattern = trianglify({ width, height, cellSize, seed: 'tiling-test', shape })
+    // exact count pinned at search time: every duplicate merged. A fallback
+    // regression (wrong offsets, inverted comparison) would split the
+    // boundary-straddling vertex and raise the count.
+    expect(pattern.points.length).toBe(expectedPoints)
+    // and independently: no two returned vertices coincide within EPSILON
+    // (grid-based O(n) nearest-neighbor check)
+    const buckets = new Map<number, number[][]>()
+    for (const [x, y] of pattern.points as [number, number][]) {
+      const qx = Math.round(x / EPSILON)
+      const qy = Math.round(y / EPSILON)
+      for (let dx = -1; dx <= 1; dx++) {
+        for (let dy = -1; dy <= 1; dy++) {
+          for (const [ex, ey] of buckets.get((qx + dx) * 0x100000000 + (qy + dy)) ?? []) {
+            expect(Math.abs(ex! - x) < EPSILON && Math.abs(ey! - y) < EPSILON).toBe(false)
+          }
+        }
+      }
+      const key = qx * 0x100000000 + qy
+      if (!buckets.has(key)) buckets.set(key, [])
+      buckets.get(key)!.push([x, y])
+    }
+  })
+})
+
 describe('pentagon-cairo geometry', () => {
   test('pentagons are equilateral with edge length cellSize/sqrt(4+sqrt(7))', () => {
     const pattern = generate('pentagon-cairo')

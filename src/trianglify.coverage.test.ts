@@ -1556,6 +1556,64 @@ describe('colorOutput option', () => {
   })
 })
 
+describe('gamut mapping (CSS Color 4)', () => {
+  // culori is the library's own color backend; the tests use it directly to
+  // compute reference conversions instead of hardcoding channel math (the
+  // full `culori` entry here, not the `culori/fn` subset the bundle uses)
+  const culori = require('culori')
+  const toOklch = culori.converter('oklch')
+  // saturated green far outside both sRGB and P3
+  const outOfGamut = { mode: 'oklch', l: 0.7, c: 0.35, h: 150 }
+  const parseChannels = (css: string): number[] =>
+    css.replace(/^color\(display-p3 |^[a-z-]+\(|\)$/g, '').trim().split(/\s+/).map(Number)
+
+  test('in-gamut colors serialize unchanged by the mapping', () => {
+    expect(trianglify.utils.css('#3498db')).toBe('rgb(52 152 219)')
+    const p3 = culori.converter('p3')(culori.parse('#3498db'))
+    const expected = (v: number) => Math.round(v * 1e5) / 1e5
+    expect(parseChannels(trianglify.utils.css('#3498db', 'display-p3'))).toEqual(
+      [expected(p3.r), expected(p3.g), expected(p3.b)]
+    )
+  })
+
+  test("out-of-gamut 'rgb' output is chroma-mapped, not channel-clipped", () => {
+    const mapped = trianglify.utils.css(outOfGamut)
+    const channels = parseChannels(mapped)
+    expect(channels).toHaveLength(3)
+    channels.forEach(c => {
+      expect(c).toBeGreaterThanOrEqual(0)
+      expect(c).toBeLessThanOrEqual(255)
+    })
+    // the old per-channel clipping result — if toGamut ever silently
+    // degrades to a plain conversion (see culori clamp.js: a dest mode
+    // without a gamut flag), the output collapses back to this
+    const rgb = culori.converter('rgb')(outOfGamut)
+    const clip = (v: number) => Math.round(Math.min(1, Math.max(0, v)) * 255)
+    expect(mapped).not.toBe(`rgb(${clip(rgb.r)} ${clip(rgb.g)} ${clip(rgb.b)})`)
+  })
+
+  test("out-of-gamut 'rgb' output approximately preserves oklch hue", () => {
+    const mapped = toOklch(culori.parse(trianglify.utils.css(outOfGamut)))
+    expect(Math.abs(mapped.h - outOfGamut.h)).toBeLessThan(5)
+    // channel clipping would shift the hue by ~7.5 degrees for this color
+  })
+
+  test("out-of-gamut 'display-p3' output stays in [0, 1] and uses the wider gamut", () => {
+    const p3css = trianglify.utils.css(outOfGamut, 'display-p3')
+    const channels = parseChannels(p3css)
+    expect(channels).toHaveLength(3)
+    channels.forEach(c => {
+      expect(c).toBeGreaterThanOrEqual(0)
+      expect(c).toBeLessThanOrEqual(1)
+    })
+    // mapping into P3 must retain more chroma than mapping into sRGB —
+    // this fails if the p3 mode definition ever loses its gamut flag
+    const p3Chroma = toOklch(culori.parse(p3css)).c
+    const srgbChroma = toOklch(culori.parse(trianglify.utils.css(outOfGamut))).c
+    expect(p3Chroma).toBeGreaterThan(srgbChroma + 0.02)
+  })
+})
+
 describe('colorQuantization option', () => {
   const base = { seed: 'quantization', width: 100, height: 100 }
 

@@ -14,10 +14,11 @@ open points below:
   (`src/utils/culori-fn.d.ts`) covers exactly the imported surface, and the
   public API exposes trianglify's own `PatternColor` type — the published
   `.d.ts` has no culori type dependency.
-- Gamut handling is **channel clamping** (sRGB for `'rgb'`, P3 for
-  `'display-p3'`), matching the clipping behavior of previous releases;
-  `'oklch'` output is left unclamped for the display to map. The
-  chroma-preserving `toGamut` mapping remains a possible refinement.
+- Gamut handling is **CSS Color 4 gamut mapping** via culori's `toGamut`
+  (chroma reduction in oklch, hue and lightness preserved) for `'rgb'` and
+  `'display-p3'`; `'oklch'` output is left unclamped for the display to
+  map. (Initially shipped as channel clamping; upgraded to mapping by
+  docs/gamut-mapping-and-dedup-fallback-plan.md.)
 - `toCanvas()` requests a `display-p3` context **automatically** for
   `'display-p3'` patterns (no separate opt-in), and throws in Node for any
   non-`'rgb'` output.

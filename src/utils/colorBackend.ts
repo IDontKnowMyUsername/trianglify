@@ -7,7 +7,7 @@
  * Imports use culori/fn, the tree-shakeable entry: only the color spaces
  * registered below end up in the bundles.
  */
-import { useMode, converter, interpolate, formatCss, parse, modeRgb, modeLrgb, modeHsl, modeHsv, modeHsi, modeXyz65, modeLab65, modeLch65, modeOklab, modeOklch, modeP3 } from 'culori/fn'
+import { useMode, converter, interpolate, formatCss, parse, toGamut, modeRgb, modeLrgb, modeHsl, modeHsv, modeHsi, modeXyz65, modeLab65, modeLch65, modeOklab, modeOklch, modeP3 } from 'culori/fn'
 import type { PatternColor, ColorSpace, ColorOutput } from '../types'
 
 // Every color space reachable from the public options must be registered,
@@ -70,9 +70,19 @@ export const mix = (a: PatternColor | string, b: PatternColor | string, ratio = 
   interpolate([toColor(a), toColor(b)], SPACE_TO_MODE[space])(ratio)
 
 const toLab65 = converter('lab65')
-const toRgb = converter('rgb')
 const toOklch = converter('oklch')
+const toRgb = converter('rgb')
 const toP3 = converter('p3')
+
+// CSS Color 4 gamut mapping: reduce chroma in oklch (binary search with a
+// just-noticeable-difference stop) until the color fits the destination
+// gamut, preserving hue and lightness — unlike per-channel clipping, which
+// shifts both. Invoked only for out-of-gamut colors: serializeColor runs
+// per polygon, and even toGamut's in-gamut short-circuit costs two extra
+// color-space conversions, so the caller probes gamut membership first.
+// Alpha is unaffected: mapping only searches chroma.
+const toGamutRgb = toGamut('rgb')
+const toGamutP3 = toGamut('p3')
 
 // lightness step per darken unit on the CIELAB L axis (same constant
 // earlier releases used, so shadows() keeps its visual depth)
@@ -103,26 +113,33 @@ const roundChannels = (c: PatternColor): PatternColor => {
 
 /**
  * Serialize a color for pattern output:
- * - `'rgb'` — 8-bit `rgb(r g b)`, channel-clamped to sRGB
+ * - `'rgb'` — 8-bit `rgb(r g b)`, gamut-mapped to sRGB (CSS Color 4
+ *   chroma reduction)
  * - `'oklch'` — decimal-precision `oklch(l c h)`, gamut unclamped (the
  *   display maps it)
- * - `'display-p3'` — `color(display-p3 r g b)`, channel-clamped to P3
+ * - `'display-p3'` — `color(display-p3 r g b)`, gamut-mapped to P3
  */
 export const serializeColor = (color: PatternColor | string, output: ColorOutput = 'rgb'): string => {
   const c = toColor(color)
   switch (output) {
     case 'rgb': {
       const rgb = toRgb(c) as PatternColor & { r: number; g: number; b: number }
-      const r = Math.round(clamp01(rgb.r) * 255)
-      const g = Math.round(clamp01(rgb.g) * 255)
-      const b = Math.round(clamp01(rgb.b) * 255)
+      let { r, g, b } = rgb
+      if (r < 0 || r > 1 || g < 0 || g > 1 || b < 0 || b > 1) {
+        const mapped = toGamutRgb(c) as PatternColor & { r: number; g: number; b: number }
+        r = mapped.r; g = mapped.g; b = mapped.b
+      }
+      // clamp01 guards against sub-ulp overshoot from the mapping search
       const alpha = typeof rgb.alpha === 'number' && rgb.alpha < 1 ? ` / ${round5(clamp01(rgb.alpha))}` : ''
-      return `rgb(${r} ${g} ${b}${alpha})`
+      return `rgb(${Math.round(clamp01(r) * 255)} ${Math.round(clamp01(g) * 255)} ${Math.round(clamp01(b) * 255)}${alpha})`
     }
     case 'oklch':
       return formatCss(roundChannels(toOklch(c)!))!
     case 'display-p3': {
-      const p3 = toP3(c) as PatternColor & { r: number; g: number; b: number }
+      let p3 = toP3(c) as PatternColor & { r: number; g: number; b: number }
+      if (p3.r < 0 || p3.r > 1 || p3.g < 0 || p3.g > 1 || p3.b < 0 || p3.b > 1) {
+        p3 = toGamutP3(c) as PatternColor & { r: number; g: number; b: number }
+      }
       return formatCss(roundChannels({ ...p3, r: clamp01(p3.r), g: clamp01(p3.g), b: clamp01(p3.b) }))!
     }
   }

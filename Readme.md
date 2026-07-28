@@ -366,9 +366,9 @@ String, defaults to `'lab'`. Set the color space used for generating gradients. 
 
 String, defaults to `'rgb'`. The format polygon colors are serialized in:
 
-- `'rgb'` — 8-bit `rgb(r g b)` strings, gamut-clamped to sRGB. Works everywhere.
+- `'rgb'` — 8-bit `rgb(r g b)` strings, gamut-mapped to sRGB (CSS Color 4 chroma reduction). Works everywhere.
 - `'oklch'` — decimal-precision `oklch(…)` strings; browsers map them to the display's gamut.
-- `'display-p3'` — `color(display-p3 …)` strings, gamut-clamped to P3, for wide-gamut displays.
+- `'display-p3'` — `color(display-p3 …)` strings, gamut-mapped to P3 (CSS Color 4 chroma reduction), for wide-gamut displays.
 
 Wide-gamut output renders in SVG and in browser canvas (`toCanvas()` requests a `display-p3` canvas automatically for `'display-p3'` patterns). node-canvas cannot parse CSS Color 4 strings, so `toCanvas()` throws in Node for non-`'rgb'` output — render via `toSVGTree()` instead.
 

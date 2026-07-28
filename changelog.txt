@@ -63,7 +63,9 @@ New features:
   patterns render in SVG and browser canvas (toCanvas requests a display-p3
   canvas automatically), and toCanvas fails loudly in Node where node-canvas
   cannot parse CSS Color 4 strings; colorSpace gains 'oklab' and 'oklch'
-  interpolation; colorOutput round-trips through toData()/fromData()
+  interpolation; colorOutput round-trips through toData()/fromData();
+  out-of-gamut colors are gamut-mapped per CSS Color 4 (chroma reduction in
+  oklch, preserving hue and lightness) instead of channel-clipped
 - color pipeline performance: scale lookups are quantized and cached
   (colorQuantization option — 'auto' keys the step count to the output
   format's precision so the error stays below one output channel step;
