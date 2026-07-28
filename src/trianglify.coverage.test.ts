@@ -680,6 +680,28 @@ describe('Shape option', () => {
     })
   })
 
+  test('gap-filling triangles precede primary shapes in the polys array', () => {
+    // Render order: jittered neighbors can overlap, and a triangle spanning
+    // an overlap is classified as gap fill. Gap fill must come first in the
+    // polys array (i.e. render beneath) or it paints over the shapes and
+    // the pattern degrades to triangle soup at the default variance.
+    const shaped = ['pentagon', 'hexagon', 'heptagon', 'octagon', 'circle'] as const
+    shaped.forEach(shape => {
+      const pattern = trianglify({
+        width: 100,
+        height: 100,
+        cellSize: 25,
+        shape: shape as any,
+        seed: `order-${shape}`
+      })
+      const firstPrimary = pattern.polys.findIndex((p: { vertexIndices: number[] }) => p.vertexIndices.length !== 3)
+      expect(firstPrimary).toBeGreaterThan(0)
+      pattern.polys.slice(firstPrimary).forEach((p: { vertexIndices: number[] }) => {
+        expect(p.vertexIndices.length).not.toBe(3)
+      })
+    })
+  })
+
   test('shapes should be deterministic when seeded', () => {
     const p1 = trianglify({ seed: 'hex-det', shape: 'hexagon', width: 100, height: 100 })
     const p2 = trianglify({ seed: 'hex-det', shape: 'hexagon', width: 100, height: 100 })
@@ -1235,33 +1257,34 @@ describe('Point count invariant across pointGeneration modes', () => {
   })
 })
 
+// Even-odd ray-casting point-in-polygon test (shared by the hexagon
+// honeycomb and octagon truncated-square certifications)
+const pointInPoly = (x: number, y: number, verts: number[][]): boolean => {
+  let inside = false
+  for (let k = 0, m = verts.length - 1; k < verts.length; m = k++) {
+    const xi = verts[k]![0]!
+    const yi = verts[k]![1]!
+    const xm = verts[m]![0]!
+    const ym = verts[m]![1]!
+    if ((yi > y) !== (ym > y) && x < ((xm - xi) * (y - yi)) / (ym - yi) + xi) {
+      inside = !inside
+    }
+  }
+  return inside
+}
+
+// Shoelace area of a polygon
+const polyArea = (verts: number[][]): number => {
+  let sum = 0
+  for (let k = 0; k < verts.length; k++) {
+    const v = verts[k]!
+    const w = verts[(k + 1) % verts.length]!
+    sum += v[0]! * w[1]! - w[0]! * v[1]!
+  }
+  return Math.abs(sum) / 2
+}
+
 describe('Hexagon honeycomb layout', () => {
-  // Even-odd ray-casting point-in-polygon test
-  const pointInPoly = (x: number, y: number, verts: number[][]): boolean => {
-    let inside = false
-    for (let k = 0, m = verts.length - 1; k < verts.length; m = k++) {
-      const xi = verts[k]![0]!
-      const yi = verts[k]![1]!
-      const xm = verts[m]![0]!
-      const ym = verts[m]![1]!
-      if ((yi > y) !== (ym > y) && x < ((xm - xi) * (y - yi)) / (ym - yi) + xi) {
-        inside = !inside
-      }
-    }
-    return inside
-  }
-
-  // Shoelace area of a polygon
-  const polyArea = (verts: number[][]): number => {
-    let sum = 0
-    for (let k = 0; k < verts.length; k++) {
-      const v = verts[k]!
-      const w = verts[(k + 1) % verts.length]!
-      sum += v[0]! * w[1]! - w[0]! * v[1]!
-    }
-    return Math.abs(sum) / 2
-  }
-
   const WIDTH = 200
   const HEIGHT = 150
   const CELL = 40
@@ -1326,6 +1349,73 @@ describe('Hexagon honeycomb layout', () => {
     for (let i = 1; i < rowYs.length; i++) {
       expect(rowYs[i]! - rowYs[i - 1]!).toBeCloseTo(expected, 6)
     }
+  })
+})
+
+describe('Octagon truncated-square tiling', () => {
+  const WIDTH = 200
+  const HEIGHT = 150
+  const CELL = 40
+
+  const generate = () => trianglify({
+    width: WIDTH,
+    height: HEIGHT,
+    cellSize: CELL,
+    shape: 'octagon',
+    variance: 0,
+    seed: 'oct-truncated-square'
+  })
+
+  test('octagons and gap fill cover the artboard exactly once at variance 0', () => {
+    const pattern = generate()
+    const polys = pattern.polys
+      .filter((p: { vertexIndices: number[] }) => p.vertexIndices.length > 0)
+      .map((p: { vertexIndices: number[] }) => p.vertexIndices.map((i: number) => pattern.points[i]))
+    // Every sample point in the visible canvas must fall inside exactly one
+    // poly — an octagon or a corner-square half: 0 means a gap, 2+ means an
+    // overlap. The former pointy-top orientation failed this by pointing a
+    // vertex at each grid neighbor, so adjacent octagons interpenetrated
+    // even at variance 0. Fractional offsets keep samples away from edges
+    // and vertices.
+    const N = 13
+    const bad: string[] = []
+    for (let i = 0; i < N; i++) {
+      for (let j = 0; j < N; j++) {
+        const x = (i + 0.271828) * (WIDTH / N)
+        const y = (j + 0.577215) * (HEIGHT / N)
+        let count = 0
+        for (const verts of polys) {
+          if (pointInPoly(x, y, verts)) count++
+        }
+        if (count !== 1) bad.push(`(${x.toFixed(1)}, ${y.toFixed(1)}) covered ${count}x`)
+      }
+    }
+    expect(bad).toEqual([])
+  })
+
+  test('interior gap triangles are corner-square halves with side cellSize * tan(PI/8)', () => {
+    const pattern = generate()
+    // Flat-to-flat octagons with apothem cellSize/2 leave square gaps with
+    // the octagon's edge length s = cellSize * tan(PI/8); Delaunay splits
+    // each square into two triangles of area s^2/2 (either diagonal).
+    // Coincident shared corners can also yield floating-point sliver
+    // triangles of essentially zero area — allow those, reject anything else.
+    const s = CELL * Math.tan(Math.PI / 8)
+    const interior = pattern.polys
+      .filter((p: { vertexIndices: number[] }) => p.vertexIndices.length === 3)
+      .filter((p: { centroid: { x: number; y: number } }) =>
+        p.centroid.x >= 0 && p.centroid.x <= WIDTH && p.centroid.y >= 0 && p.centroid.y <= HEIGHT)
+    const halves = interior.filter((p: { vertexIndices: number[] }) => {
+      const area = polyArea(p.vertexIndices.map((i: number) => pattern.points[i]))
+      return Math.abs(area - (s * s) / 2) < 1e-6
+    })
+    const slivers = interior.filter((p: { vertexIndices: number[] }) => {
+      const area = polyArea(p.vertexIndices.map((i: number) => pattern.points[i]))
+      return area < 1e-6
+    })
+    expect(halves.length).toBeGreaterThan(0)
+    expect(halves.length % 2).toBe(0)
+    expect(halves.length + slivers.length).toBe(interior.length)
   })
 })
 

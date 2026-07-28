@@ -46,8 +46,10 @@ export type TilingShape = 'pentagon-cairo' | 'pentagon-convex' | 'pentagon-nonco
  * The geometry a pattern is built from:
  * - `'triangle'` — Delaunay triangulation of the generated points (the classic behavior)
  * - `'pentagon'`, `'hexagon'`, `'heptagon'`, `'octagon'` — one regular polygon
- *   per generated point, with gaps filled by triangles; hexagons on the
- *   default `'grid'` layout are arranged in an exact honeycomb
+ *   per generated point, with gaps filled by triangles rendered beneath the
+ *   polygons; hexagons on the default `'grid'` layout are arranged in an
+ *   exact honeycomb, octagons flat-to-flat so `variance: 0` yields an exact
+ *   truncated-square tiling
  * - `'circle'` — one circle per generated point, with gap-filling triangles
  * - the {@link TilingShape} values — exact pentagonal plane tilings
  */

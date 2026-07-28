@@ -425,7 +425,7 @@ Every mode emits the same number of points at a given `cellSize`, so modes can b
 String, defaults to `'triangle'`. Selects the geometry the pattern is built from:
 
 - `'triangle'` — Delaunay triangulation of the generated points (the classic behavior)
-- `'pentagon'`, `'hexagon'`, `'heptagon'`, `'octagon'` — one regular polygon per generated point, with the gaps between polygons filled by triangles. With the default `'grid'` point generation, hexagons are arranged in an exact honeycomb tiling (gap-free at `variance: 0`).
+- `'pentagon'`, `'hexagon'`, `'heptagon'`, `'octagon'` — one regular polygon per generated point, with the gaps between polygons filled by triangles rendered beneath the polygons (so the polygons stay fully visible even when a high `variance` makes neighbors overlap). With the default `'grid'` point generation, hexagons are arranged in an exact honeycomb tiling and octagons flat-to-flat in an exact truncated-square tiling (both gap-free at `variance: 0`).
 - `'circle'` — one circle per generated point, with gap-filling triangles
 - `'pentagon-cairo'` — the equilateral Cairo pentagonal tiling
 - `'pentagon-convex'` — a type 5 convex pentagon tiling forming 6-fold rosettes

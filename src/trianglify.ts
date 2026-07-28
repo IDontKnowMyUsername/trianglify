@@ -261,10 +261,17 @@ const buildShapePolys = (points: Point[], shape: RegularPolygonShape | 'circle',
   // circumradius * cos(PI/N). For flat edges to meet at the midpoint
   // between grid centers: apothem = cellSize/2, giving
   // circumradius = cellSize / (2 * cos(PI/N)).
+  // Octagons are rotated so flats (not vertices) face the four grid
+  // neighbors: with apothem = cellSize/2 the variance-0 grid is then an
+  // exact truncated-square tiling (octagons + corner squares). The default
+  // pointy-top orientation points a vertex at each neighbor, which makes
+  // adjacent octagons interpenetrate even with zero jitter.
   // For circles, approximate as a high-sided polygon for gap computation
   // but render as true circles.
   const approxSides = shape === 'circle' ? CIRCLE_APPROX_SIDES : getSidesForShape(shape)
-  const polys: Polygon[] = []
+  const rotationOffset = shape === 'octagon' ? -Math.PI / 8 : undefined
+  const shapePolys: Polygon[] = []
+  const gapPolys: Polygon[] = []
   const circumradius = cellSize / (2 * Math.cos(Math.PI / approxSides))
   const centerCount = points.length
 
@@ -274,7 +281,7 @@ const buildShapePolys = (points: Point[], shape: RegularPolygonShape | 'circle',
 
   for (let i = 0; i < centerCount; i++) {
     const center = points[i]!
-    const verts = generateRegularPolygon(center, approxSides, circumradius)
+    const verts = generateRegularPolygon(center, approxSides, circumradius, rotationOffset)
     for (let v = 0; v < verts.length; v++) {
       vertexOwner.push(i)
       allVerts.push(verts[v]!)
@@ -297,12 +304,12 @@ const buildShapePolys = (points: Point[], shape: RegularPolygonShape | 'circle',
       // Render as a true circle; vertices are only used for gap computation.
       // Note: the color function receives empty vertexIndices/vertices here
       const color = colorPoly(centroid, [], [])
-      polys.push({ vertexIndices: [], centroid, color, radius: circumradius })
+      shapePolys.push({ vertexIndices: [], centroid, color, radius: circumradius })
     } else {
       const vertexIndices = Array.from({ length: approxSides }, (_, v) => vertexBase + start + v)
       const verts = allVerts.slice(start, start + approxSides)
       const color = colorPoly(centroid, vertexIndices, verts)
-      polys.push({ vertexIndices, centroid, color, radius: circumradius })
+      shapePolys.push({ vertexIndices, centroid, color, radius: circumradius })
     }
   }
 
@@ -355,9 +362,15 @@ const buildShapePolys = (points: Point[], shape: RegularPolygonShape | 'circle',
     const vertices: Point[] = [allVerts[a]!, allVerts[b]!, allVerts[c]!]
     const centroid = getCentroid(vertices)
     const color = colorPoly(centroid, vi, vertices)
-    polys.push({ vertexIndices: vi, centroid, color })
+    gapPolys.push({ vertexIndices: vi, centroid, color })
   }
-  return polys
+
+  // Gap fill renders beneath the primary shapes. Jittered shapes can
+  // overlap, and a triangle spanning an overlap has mixed vertex ownership,
+  // so it is classified as gap fill — emitted after the shapes it crosses,
+  // it would paint over them and the pattern degrades to triangle soup at
+  // high variance. Shapes last keeps every primary shape fully visible.
+  return [...gapPolys, ...shapePolys]
 }
 
 /**
