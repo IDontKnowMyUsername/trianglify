@@ -120,6 +120,20 @@ describe('worker bundle execution', () => {
     expect(posted[0]).toEqual({ id: 5, error: 'Unknown color function: constructor' })
   })
 
+  test('rejects malformed color function args', () => {
+    // args cross the same trust boundary as the name: non-numeric entries
+    // would otherwise flow into the factory and silently yield NaN colors
+    const { posted, send } = bootWorker()
+    send(6, { width: 100, height: 100, colorFunction: { name: 'sparkle', args: [{}] } })
+    send(7, { width: 100, height: 100, colorFunction: { name: 'sparkle', args: 'nope' } })
+    send(8, { width: 100, height: 100, colorFunction: { name: 'sparkle', args: [Number.NaN] } })
+
+    expect(posted.map(r => r.id)).toEqual([6, 7, 8])
+    for (const reply of posted) {
+      expect(reply.error).toBe('Invalid color function args for sparkle: expected an array of finite numbers')
+    }
+  })
+
   test('replies with an error for malformed messages instead of crashing', () => {
     const { scope, posted } = bootWorker()
     scope.onmessage!({ data: null })
@@ -197,6 +211,14 @@ describe('createWorkerHandler (main-entry export)', () => {
     expect(posted).toEqual([
       { id: 1, error: 'Unknown color function: nope' },
       { id: 2, error: 'Unknown color function: constructor' }
+    ])
+  })
+
+  test('rejects malformed color function args', () => {
+    const { posted, send } = bootHandler()
+    send(3, { colorFunction: { name: 'shadows', args: [null] } })
+    expect(posted).toEqual([
+      { id: 3, error: 'Invalid color function args for shadows: expected an array of finite numbers' }
     ])
   })
 

@@ -31,6 +31,12 @@ const resolveColorFunction = (descriptor: ColorFunctionDescriptor | string | und
   if (typeof name !== 'string' || !Object.hasOwn(colorFunctions, name)) {
     throw new Error(`Unknown color function: ${String(name)}`)
   }
+  // args cross the same trust boundary as the name: every built-in factory
+  // takes optional finite-number parameters, so anything else (objects, NaN,
+  // a non-array) would silently poison the color math into NaN output
+  if (!Array.isArray(args) || !args.every((a) => typeof a === 'number' && Number.isFinite(a))) {
+    throw new Error(`Invalid color function args for ${name}: expected an array of finite numbers`)
+  }
   const factory = colorFunctions[name as ColorFunctionName]
   return (factory as (...args: unknown[]) => ColorFunction)(...args)
 }

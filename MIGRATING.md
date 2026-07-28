@@ -23,7 +23,7 @@ What to change:
 - **Deep imports break.** Anything reaching into the package other than the
   root and `trianglify/worker` (e.g. `require('trianglify/dist/trianglify.min.js')`)
   must switch to the root import or a documented dist file.
-- **Node >= 18 is required.**
+- **Node >= 20 is required.**
 - TypeScript definitions are now bundled (`trianglify.d.ts` / `.d.cts`) — if
   you had a local declaration or a `@types` stub for trianglify, delete it.
 - `canvas` is an optional peer dependency: install it only if you call

@@ -14,7 +14,7 @@ If you're submitting a bug, please include the environment (browser/node) and re
 *Important: if you are submitting a pull request that does not address an open issue in the issue tracker, it would be a very good idea to create an issue to discuss your proposed changes/additions before working on them.*
 
 1. Fork the repo on GitHub.
-2. Use Node 22 (`.nvmrc`) — any Node >= 18 works; CI tests 18/20/22/24.
+2. Use Node 22 (`.nvmrc`) — any Node >= 20 works; CI tests 20/22/24.
 3. Install dependencies with `pnpm install` (the pnpm version is pinned via `packageManager`).
 4. Create a topic branch and make your changes.
 5. Run `pnpm run ci` to typecheck, lint, build, validate packaging, and test your code.

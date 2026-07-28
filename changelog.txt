@@ -51,8 +51,9 @@ New features:
 - Web Worker support: TrianglifyWorker client (accepts a script URL or a
   pre-constructed Worker) with AbortSignal cancellation, a prebuilt worker
   bundle exposed as the trianglify/worker export, and automatic serialization
-  of built-in color functions; trianglify.createWorkerHandler(post) builds a
-  protocol-compatible message handler for hand-rolled worker scripts
+  of built-in color functions (descriptor names and args are validated
+  worker-side before resolving); trianglify.createWorkerHandler(post) builds
+  a protocol-compatible message handler for hand-rolled worker scripts
 - pattern serialization: pattern.toData() / Pattern.fromData(data) for JSON-
   and postMessage-safe caching and transfer; fromData structurally validates
   untrusted data

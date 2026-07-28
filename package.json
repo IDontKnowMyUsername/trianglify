@@ -50,7 +50,7 @@
     "dev": "tsc -p tsconfig.build.json && rollup -c -w",
     "prepublishOnly": "pnpm run ci",
     "publish-beta": "pnpm run build && pnpm publish --tag next",
-    "lint:package": "publint && attw --pack . --ignore-rules cjs-resolves-to-esm && tsc -p typetests",
+    "lint:package": "publint && attw --pack . --exclude-entrypoints ./worker && tsc -p typetests",
     "ci": "pnpm run typecheck && pnpm run lint && pnpm run build && pnpm run lint:package && pnpm run test:coverage"
   },
   "peerDependencies": {
@@ -98,6 +98,14 @@
     },
     "setupFiles": [
       "jest-canvas-mock"
+    ],
+    "collectCoverageFrom": [
+      "src/**/*.ts",
+      "dist/trianglify.cjs",
+      "!src/**/*.test.ts",
+      "!src/**/*.d.ts",
+      "!src/types.ts",
+      "!src/worker.ts"
     ],
     "coveragePathIgnorePatterns": [
       "node_modules",
