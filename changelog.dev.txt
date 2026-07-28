@@ -3,6 +3,7 @@ Development commit log, auto-appended by .claude/hooks/post-commit-changelog.sh
 changelog.txt — this file records internal churn and is not published.
 
 v5
+- point repository metadata at the IDontKnowMyUsername fork: package.json repository/bugs/homepage, security advisory link, contributing links, license banner, readme releases link (2026-07-28)
 - validate worker color-function args, pin coverage denominator, widen stale-dist guard, cross-check d.cts exports, scope attw suppression to the worker entrypoint, fix culori and node-20 doc drift (2026-07-28)
 - implement the gamut mapping and dedup fallback plan: CSS Color 4 output mapping, boundary-straddle tiling tests (2026-07-27)
 - implement the color pipeline plan: culori backend, wide-gamut output, scale quantization (2026-07-27)
