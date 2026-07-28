@@ -3,7 +3,7 @@
 Pull requests and issues are welcome! For all contributions, please:
 
 1. Read the [Readme](Readme.md)
-2. Search the existing [issues](https://github.com/qrohlf/trianglify/issues?q=is%3Aissue+) and [pull requests](https://github.com/qrohlf/trianglify/pulls?q=is%3Apr) to make sure your contribution isn't a duplicate
+2. Search the existing [issues](https://github.com/IDontKnowMyUsername/trianglify/issues?q=is%3Aissue+) and [pull requests](https://github.com/IDontKnowMyUsername/trianglify/pulls?q=is%3Apr) to make sure your contribution isn't a duplicate
 
 ## Issues
 

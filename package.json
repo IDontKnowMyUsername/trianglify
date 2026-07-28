@@ -70,7 +70,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/qrohlf/trianglify.git"
+    "url": "git+https://github.com/IDontKnowMyUsername/trianglify.git"
   },
   "keywords": [
     "svg",
@@ -138,9 +138,9 @@
   "license": "GPL-3.0-only",
   "packageManager": "pnpm@10.33.0",
   "bugs": {
-    "url": "https://github.com/qrohlf/trianglify/issues"
+    "url": "https://github.com/IDontKnowMyUsername/trianglify/issues"
   },
-  "homepage": "https://github.com/qrohlf/trianglify",
+  "homepage": "https://github.com/IDontKnowMyUsername/trianglify",
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.5",
     "@eslint/js": "^10.0.1",

@@ -29,7 +29,7 @@ Include it in your application via the unpkg CDN:
 <script src='https://unpkg.com/trianglify@^5/dist/trianglify.bundle.js'></script>
 ```
 
-Or download a .zip from the [**releases page**](https://github.com/qrohlf/trianglify/releases).
+Or download a .zip from the [**releases page**](https://github.com/IDontKnowMyUsername/trianglify/releases).
 
 ## Module formats & TypeScript
 

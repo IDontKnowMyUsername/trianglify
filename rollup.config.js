@@ -15,7 +15,7 @@ const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 
 // left external: its ./fn subpath ships only ESM, which require() cannot
 // load on older node 20.x
 const licenseBanner = `/*!
- * Trianglify v${pkg.version} <https://github.com/qrohlf/trianglify> — GPL-3.0 © Quinn Rohlf
+ * Trianglify v${pkg.version} <https://github.com/IDontKnowMyUsername/trianglify> — GPL-3.0 © Quinn Rohlf
  * Bundled dependencies:
  *   culori © Dan Burzo — MIT
  *   delaunator © Mapbox — ISC

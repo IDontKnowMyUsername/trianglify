@@ -3,9 +3,8 @@
 ## Reporting a vulnerability
 
 Please report suspected security vulnerabilities privately via
-[GitHub security advisories](https://github.com/qrohlf/trianglify/security/advisories/new)
-or by email to qr@qrohlf.com. Please do not open a public issue for
-security reports.
+[GitHub security advisories](https://github.com/IDontKnowMyUsername/trianglify/security/advisories/new).
+Please do not open a public issue for security reports.
 
 ## Scope notes
 
