@@ -313,42 +313,45 @@ const buildShapePolys = (points: Point[], shape: RegularPolygonShape | 'circle',
     }
   }
 
-  // Phase 3: Delaunay-triangulate all polygon vertices to find gap-filling
+  // Phase 3: Delaunay-triangulate the polygon vertices to find gap-filling
   // triangles. Interior triangles (all 3 vertices from the same shape) are
   // skipped; the remaining triangles fill the gaps between primary shapes.
   //
-  // Ownership is tested by vertex *position*, not index: when shapes tile
-  // exactly (e.g. the hexagon honeycomb at variance 0), adjacent shapes
-  // carry coincident copies of shared corners and Delaunator references
-  // just one copy — index ownership alone would misclassify shape
-  // interiors as gaps. A triangle whose three corner positions share any
-  // owner lies inside that (convex) shape, so skipping it is always safe.
-  // Each vertex's owner list is resolved once here rather than per triangle
-  // corner (a vertex is a corner of ~6 Delaunay triangles). Storing the
-  // shared array reference is what makes the single pass sound: owners
-  // appended by later vertices at the same position mutate the same array.
+  // Coincident vertices are canonicalized before triangulation: when shapes
+  // tile exactly (hexagon honeycomb, flat-to-flat octagons at variance 0),
+  // adjacent shapes carry near-duplicate float copies of shared corners.
+  // Fed to Delaunator as distinct points, the copies yield doubled
+  // triangles plus arbitrarily tie-broken diagonals that cross the contact
+  // edge into shape interiors and get misclassified as gap fill. Each
+  // rounding bucket therefore collapses to one canonical point carrying
+  // the owner list of every copy; a triangle whose three canonical corners
+  // share an owner lies inside that (convex) shape, so skipping it is
+  // always safe. (tilings.ts applies the same dedup with numeric keys.)
   const posKey = (p: Point): string => `${Math.round(p[0] * 1e6)},${Math.round(p[1] * 1e6)}`
-  const posOwners = new Map<string, number[]>()
-  const ownersByVertex: number[][] = new Array<number[]>(allVerts.length)
+  const canonByKey = new Map<string, number>()
+  const uniqueVerts: Point[] = []
+  const repVertex: number[] = [] // canonical index -> an original allVerts index
+  const ownersByCanon: number[][] = []
   for (let v = 0; v < allVerts.length; v++) {
     const key = posKey(allVerts[v]!)
-    let owners = posOwners.get(key)
-    if (owners) {
-      owners.push(vertexOwner[v]!)
-    } else {
-      owners = [vertexOwner[v]!]
-      posOwners.set(key, owners)
+    let ci = canonByKey.get(key)
+    if (ci === undefined) {
+      ci = uniqueVerts.length
+      canonByKey.set(key, ci)
+      uniqueVerts.push(allVerts[v]!)
+      repVertex.push(v)
+      ownersByCanon.push([])
     }
-    ownersByVertex[v] = owners
+    ownersByCanon[ci]!.push(vertexOwner[v]!)
   }
   const shareOwner = (a: number, b: number, c: number): boolean => {
-    const ownersA = ownersByVertex[a]!
-    const ownersB = ownersByVertex[b]!
-    const ownersC = ownersByVertex[c]!
+    const ownersA = ownersByCanon[a]!
+    const ownersB = ownersByCanon[b]!
+    const ownersC = ownersByCanon[c]!
     return ownersA.some(o => ownersB.includes(o) && ownersC.includes(o))
   }
 
-  const gapIndices = Delaunator.from(allVerts).triangles
+  const gapIndices = Delaunator.from(uniqueVerts).triangles
   for (let i = 0; i < gapIndices.length; i += 3) {
     const a = gapIndices[i]!
     const b = gapIndices[i + 1]!
@@ -358,8 +361,8 @@ const buildShapePolys = (points: Point[], shape: RegularPolygonShape | 'circle',
       continue
     }
 
-    const vi = [vertexBase + a, vertexBase + b, vertexBase + c]
-    const vertices: Point[] = [allVerts[a]!, allVerts[b]!, allVerts[c]!]
+    const vi = [vertexBase + repVertex[a]!, vertexBase + repVertex[b]!, vertexBase + repVertex[c]!]
+    const vertices: Point[] = [uniqueVerts[a]!, uniqueVerts[b]!, uniqueVerts[c]!]
     const centroid = getCentroid(vertices)
     const color = colorPoly(centroid, vi, vertices)
     gapPolys.push({ vertexIndices: vi, centroid, color })

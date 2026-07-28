@@ -1393,29 +1393,24 @@ describe('Octagon truncated-square tiling', () => {
     expect(bad).toEqual([])
   })
 
-  test('interior gap triangles are corner-square halves with side cellSize * tan(PI/8)', () => {
+  test('interior gap triangles are exactly corner-square halves with side cellSize * tan(PI/8)', () => {
     const pattern = generate()
     // Flat-to-flat octagons with apothem cellSize/2 leave square gaps with
     // the octagon's edge length s = cellSize * tan(PI/8); Delaunay splits
     // each square into two triangles of area s^2/2 (either diagonal).
-    // Coincident shared corners can also yield floating-point sliver
-    // triangles of essentially zero area — allow those, reject anything else.
+    // Canonical vertex dedup before triangulation means no sliver or
+    // shape-crossing triangles survive — every interior gap triangle must
+    // be exactly a corner-square half.
     const s = CELL * Math.tan(Math.PI / 8)
     const interior = pattern.polys
       .filter((p: { vertexIndices: number[] }) => p.vertexIndices.length === 3)
       .filter((p: { centroid: { x: number; y: number } }) =>
         p.centroid.x >= 0 && p.centroid.x <= WIDTH && p.centroid.y >= 0 && p.centroid.y <= HEIGHT)
-    const halves = interior.filter((p: { vertexIndices: number[] }) => {
+    expect(interior.length).toBeGreaterThan(0)
+    interior.forEach((p: { vertexIndices: number[] }) => {
       const area = polyArea(p.vertexIndices.map((i: number) => pattern.points[i]))
-      return Math.abs(area - (s * s) / 2) < 1e-6
+      expect(area).toBeCloseTo((s * s) / 2, 6)
     })
-    const slivers = interior.filter((p: { vertexIndices: number[] }) => {
-      const area = polyArea(p.vertexIndices.map((i: number) => pattern.points[i]))
-      return area < 1e-6
-    })
-    expect(halves.length).toBeGreaterThan(0)
-    expect(halves.length % 2).toBe(0)
-    expect(halves.length + slivers.length).toBe(interior.length)
   })
 })
 

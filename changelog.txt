@@ -46,7 +46,9 @@ New features:
   form an exact gap-free honeycomb, and octagons are oriented flat-to-flat
   so the variance-0 grid is an exact truncated-square tiling; gap-filling
   triangles render beneath the primary shapes, so shapes stay visible when
-  jittered neighbors overlap at high variance
+  jittered neighbors overlap at high variance; coincident shared corners
+  are deduplicated before the gap-fill triangulation, so exact-contact
+  layouts produce no doubled, sliver, or shape-crossing gap triangles
 - pointGeneration option: grid (default), poisson (Bridson), bestCandidate
   (Mitchell), spiral (Fermat/sunflower), and sphere layouts — every mode
   emits the same point count at a given cellSize, so modes are drop-in
