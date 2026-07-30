@@ -5,6 +5,7 @@ import terser from '@rollup/plugin-terser'
 import bundleSize from 'rollup-plugin-bundle-size'
 import dts from 'rollup-plugin-dts'
 import { readFileSync } from 'node:fs'
+import { startDevServer } from './scripts/dev-server.mjs'
 
 const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'))
 
@@ -32,11 +33,24 @@ const onwarn = (warning, warn) => {
   warn(warning)
 }
 
+// `pnpm dev` = rollup watch + a static server for examples/. Gated on
+// ROLLUP_WATCH so `pnpm run build` (and CI) never opens a socket, and
+// latched so the six config entries below start exactly one server.
+let devServerStarted = false
+const devServer = () => ({
+  name: 'dev-server',
+  buildStart () {
+    if (!process.env.ROLLUP_WATCH || devServerStarted) return
+    devServerStarted = true
+    return startDevServer().then(() => undefined, err => { this.warn(`dev server failed to start: ${err.message}`) })
+  }
+})
+
 export default [
   { // build for node & module bundlers (CJS + ESM)
     input: 'src/trianglify.ts',
     onwarn,
-    plugins: [resolve(), commonjs(), ts(), bundleSize()],
+    plugins: [resolve(), commonjs(), ts(), bundleSize(), devServer()],
     output: [
       {
         file: 'dist/trianglify.cjs',

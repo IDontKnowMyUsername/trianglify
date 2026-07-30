@@ -6,6 +6,7 @@ TypeScript library for generating colorful triangle mesh patterns as SVG/Canvas.
 
 - `pnpm install` — install dependencies
 - `pnpm run build` — emit declarations via tsc, then build dist/ bundles via Rollup
+- `pnpm dev` — Rollup watch plus a static file server for `examples/` on http://localhost:3000 (override with `PORT`, auto-advances if the port is taken). The server lives in `scripts/dev-server.mjs` (zero deps, node:http) and is wired in as a `rollup.config.js` plugin gated on `ROLLUP_WATCH`, so `pnpm run build` never opens a socket. Serving over http:// matters because the examples' ES module imports and `new Worker(...)` both fail under `file://`. Live reload is served over SSE at `/__livereload`: served HTML gets a one-line client injected before `</body>`, and `fs.watch` on `dist/` and `examples/` pushes a reload debounced 150ms (one rollup pass writes six bundles plus sourcemaps, which would otherwise fire a reload storm).
 - `pnpm run test` — run Jest tests (requires build first)
 - `pnpm run test:coverage` — run Jest tests with coverage collection and threshold enforcement
 - `pnpm run typecheck` — run TypeScript type checking (no emit)

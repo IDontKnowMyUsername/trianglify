@@ -44,7 +44,7 @@ export default tseslint.config(
     files: ['scripts/**/*.mjs'],
     extends: [tseslint.configs.disableTypeChecked],
     languageOptions: {
-      globals: { console: 'readonly', process: 'readonly', URL: 'readonly' }
+      globals: { console: 'readonly', process: 'readonly', URL: 'readonly', setTimeout: 'readonly' }
     }
   },
   {
