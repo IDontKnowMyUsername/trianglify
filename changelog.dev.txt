@@ -3,6 +3,7 @@ Development commit log, auto-appended by .claude/hooks/post-commit-changelog.sh
 changelog.txt — this file records internal churn and is not published.
 
 v5
+- rename package to @designerpawssalon/trianglify and publish to the org GitHub Packages registry via the workflow GITHUB_TOKEN (2026-07-30)
 - finalize v5.0.0 release notes heading (2026-07-30)
 - add pnpm dev static server for examples with SSE live reload, wired as a ROLLUP_WATCH-gated rollup plugin so plain builds never open a socket (2026-07-30)
 - dedupe coincident shape vertices before gap-fill triangulation, fixing doubled and shape-crossing gap triangles at exact contact and the red octagon certification tests (2026-07-28)
