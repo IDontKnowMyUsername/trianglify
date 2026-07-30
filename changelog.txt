@@ -1,6 +1,4 @@
-v5.0.0 (unreleased — this section becomes the 5.0.0 release notes when the
-version is first tagged and published; the development commit log lives in
-changelog.dev.txt)
+v5.0.0 (2026-07-30)
 
 Trianglify v5 is a ground-up modernization of the library. See MIGRATING.md
 for the v4 → v5 upgrade checklist.
