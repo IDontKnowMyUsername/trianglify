@@ -13,7 +13,7 @@ import trianglify, {
   type Centroid,
   type WorkerRequest,
   type WorkerResponse
-} from 'trianglify'
+} from '@designerpawssalon/trianglify'
 import 'trianglify/worker'
 
 const opts: Partial<TrianglifyOptions> = { width: 100, height: 100, seed: 'typetest' }

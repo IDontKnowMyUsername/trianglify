@@ -2,7 +2,7 @@
 // (dist/trianglify.d.cts, resolved via the "require" exports condition).
 // The export = shape must be callable and carry the named types through
 // the merged namespace.
-import trianglify = require('trianglify')
+import trianglify = require('@designerpawssalon/trianglify')
 
 const pattern = trianglify({ width: 100, height: 100, seed: 'typetest-cjs' })
 const svgString: string = pattern.toSVGTree().toString()

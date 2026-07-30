@@ -9,7 +9,7 @@ import trianglify, {
   type TrianglifyOptions,
   type ColorFunction,
   type PatternData
-} from 'trianglify'
+} from '@designerpawssalon/trianglify'
 
 // Options are fully typed — invalid keys or values are compile errors.
 const opts: Partial<TrianglifyOptions> = {

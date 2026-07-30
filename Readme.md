@@ -19,8 +19,16 @@ Trianglify is a library that I wrote to generate nice SVG background images like
 You can grab Trianglify with your package manager of choice:
 
 ```
-pnpm add trianglify
-# or: npm install trianglify
+pnpm add @designerpawssalon/trianglify
+# or: npm install @designerpawssalon/trianglify
+```
+
+This package is published to the DesignerPawsSalon GitHub Packages registry,
+so your project needs an `.npmrc` mapping the scope (plus a GitHub token with
+`read:packages` for private access):
+
+```
+@designerpawssalon:registry=https://npm.pkg.github.com
 ```
 
 Include it in your application via the unpkg CDN:

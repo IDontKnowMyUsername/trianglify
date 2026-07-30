@@ -1,5 +1,6 @@
-# Publishes to npm with provenance when a GitHub release is published.
-# Requires an npm automation token stored as the NPM_TOKEN repository secret.
+# Publishes to GitHub Packages (the DesignerPawsSalon private npm registry)
+# when a GitHub release is published. Auth is the workflow's own GITHUB_TOKEN
+# (packages: write below) — no long-lived secret to provision or rotate.
 # The prepublishOnly guard (pnpm run ci) runs automatically before publish.
 #
 # Manual dispatch requires naming an existing release tag: the checkout is
@@ -20,7 +21,7 @@ on:
 
 permissions:
   contents: read
-  id-token: write # required for npm provenance
+  packages: write # publish target: GitHub Packages
 
 env:
   # release event: the published tag; manual dispatch: the required tag input
@@ -46,10 +47,10 @@ jobs:
       with:
         node-version: 22
         cache: 'pnpm'
-        registry-url: 'https://registry.npmjs.org'
+        registry-url: 'https://npm.pkg.github.com'
     - run: pnpm install --frozen-lockfile
     # --no-git-checks: the checkout is a detached tag, which is exactly what
     # the guard above verified — pnpm's branch check would only get in the way
-    - run: pnpm publish --provenance --access public --no-git-checks
+    - run: pnpm publish --no-git-checks
       env:
-        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
